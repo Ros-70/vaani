@@ -36,7 +36,7 @@ import com.vaani.keyboard.ui.theme.LocalVaaniColors
 
 @Composable
 fun KeyboardSurface(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -56,7 +56,7 @@ fun KeyboardSurface(engine: KeyboardEngine) {
 
 @Composable
 private fun KeyboardTopBar(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -98,7 +98,7 @@ private fun languageLabel(engine: KeyboardEngine): String = when (engine.languag
 
 @Composable
 private fun ReviewBar(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -126,7 +126,7 @@ private fun ReviewBar(engine: KeyboardEngine) {
 
 @Composable
 private fun SuggestionStrip(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     if (engine.panel != KeyboardPanel.QWERTY) {
         Row(modifier = Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("🔒 Offline · nothing is sent anywhere", color = colors.sub)

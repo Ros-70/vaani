@@ -25,7 +25,7 @@ private val lines = listOf(
 
 @Composable
 fun PrivacyScreen(navController: NavHostController) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     ScreenScaffold(
         title = "What this app can and cannot do",
         subtitle = "Every line here is checkable in Android's own app info screen.",

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,7 +17,7 @@ import com.vaani.keyboard.ui.theme.LocalVaaniColors
 
 @Composable
 fun EditRow(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         EditKey("◀", Modifier.weight(1f)) { engine.onEditLeft() }
         EditKey("▶", Modifier.weight(1f)) { engine.onEditRight() }
@@ -29,7 +28,7 @@ fun EditRow(engine: KeyboardEngine) {
 
 @Composable
 private fun EditKey(label: String, modifier: Modifier, onClick: () -> Unit) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     androidx.compose.foundation.layout.Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))

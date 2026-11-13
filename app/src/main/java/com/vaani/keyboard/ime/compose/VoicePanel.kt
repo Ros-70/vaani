@@ -27,7 +27,7 @@ import com.vaani.keyboard.ui.theme.LocalVaaniColors
 
 @Composable
 fun VoicePanel(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(
             modifier = Modifier
@@ -61,7 +61,7 @@ fun VoicePanel(engine: KeyboardEngine) {
 
 @Composable
 private fun MicButton(engine: KeyboardEngine) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     val background = if (engine.isListening) colors.danger else colors.accent
     androidx.compose.foundation.layout.Box(
         modifier = Modifier

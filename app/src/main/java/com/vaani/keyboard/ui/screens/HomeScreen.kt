@@ -39,7 +39,7 @@ private val navItems = listOf(
 
 @Composable
 fun HomeScreen(enableStep: EnableStep, onNavigate: (String) -> Unit) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(colors.bg).padding(16.dp)) {

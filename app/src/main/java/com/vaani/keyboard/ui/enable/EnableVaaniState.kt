@@ -19,19 +19,30 @@ object EnableVaaniState {
     fun currentStep(context: Context): EnableStep {
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         val ownId = inputMethodId(context)
-
-        val enabled = imm.enabledInputMethodList.any { it.id == ownId }
-        if (!enabled) return EnableStep.NOT_ENABLED
-
+        val enabledIds = imm.enabledInputMethodList.map { it.id }
         val selected = Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-        return if (selected == ownId) EnableStep.ACTIVE else EnableStep.ENABLED_NOT_SELECTED
+        return stepFor(ownId, enabledIds, selected)
+    }
+
+    /**
+     * Pure decision logic, split out from the two real Android lookups above
+     * so it's unit-testable with plain lists/strings instead of a mocked
+     * `InputMethodManager`/`Settings.Secure` — see EnableVaaniStateTest.
+     */
+    fun stepFor(ownId: String, enabledIds: List<String>, selectedId: String?): EnableStep {
+        if (ownId !in enabledIds) return EnableStep.NOT_ENABLED
+        return if (selectedId == ownId) EnableStep.ACTIVE else EnableStep.ENABLED_NOT_SELECTED
     }
 
     fun inputMethodId(context: Context): String =
         "${context.packageName}/${VaaniInputMethodService::class.java.name}"
 
+    /** Built separately from the call that fires it so tests can assert on action/data alone. */
+    fun inputMethodSettingsIntent(): Intent =
+        Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
     fun openInputMethodSettings(context: Context) {
-        context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(inputMethodSettingsIntent())
     }
 
     fun showInputMethodPicker(context: Context) {

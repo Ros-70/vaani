@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -33,11 +33,11 @@ fun ScreenScaffold(
     onBack: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(modifier = Modifier.fillMaxSize().background(colors.bg).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = colors.ink)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.ink)
             }
             Text(title, color = colors.ink, fontWeight = FontWeight.Bold, fontSize = 19.sp)
         }
@@ -50,7 +50,7 @@ fun ScreenScaffold(
 
 @Composable
 fun Card(content: @Composable () -> Unit) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -64,7 +64,7 @@ fun Card(content: @Composable () -> Unit) {
 
 @Composable
 fun ToggleRow(label: String, sub: String? = null, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -94,7 +94,7 @@ fun SegmentedControl(options: List<Pair<String, String>>, selected: String, onSe
 
 @Composable
 fun ListRow(title: String, subtitle: String? = null, trailing: @Composable () -> Unit = {}) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,7 +113,7 @@ fun ListRow(title: String, subtitle: String? = null, trailing: @Composable () ->
 
 @Composable
 fun EmptyState(emoji: String, message: String) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

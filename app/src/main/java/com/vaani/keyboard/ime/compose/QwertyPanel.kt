@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,7 +99,7 @@ private fun KeyButton(
     label: String = displayLabel(key, engine),
     spaceBar: Boolean = false,
 ) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     val scope = rememberCoroutineScope()
     var pressed by remember { mutableStateOf(false) }
 
@@ -204,7 +203,7 @@ private fun keyTextColor(key: String, colors: VaaniColorPalette) = when (key) {
 
 @Composable
 private fun LongPressPopup(key: String, popupState: LongPressPopupState) {
-    val colors = LocalVaaniColors
+    val colors = LocalVaaniColors.current
     val chars = KeyboardLayouts.longPressChars[key] ?: return
     var bounds by remember { mutableStateOf(emptyMap<String, Rect>()) }
     Row(
