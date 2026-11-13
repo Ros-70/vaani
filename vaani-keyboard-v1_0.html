@@ -1,0 +1,1495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Vaani — offline voice keyboard</title>
+<style>
+/* ===================== Theme tokens ===================== */
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --ink:#15151c; --sub:#6b6b7b; --line:#e3e3eb;
+  --accent:#5b4fd6; --accent-ink:#ffffff; --accent-soft:#eceafc;
+  --danger:#c33a2e; --danger-soft:#fbe9e7;
+  --good:#1c7a4d; --good-soft:#e2f4ec;
+  --warn:#9a6a10; --warn-soft:#fbf0d8;
+  --chip:#eeeef4;
+  --kb-bg:#d7d7e0; --key:#ffffff; --key-alt:#bfbfcc; --key-ink:#15151c;
+  --host:#e9e9ef;
+}
+:root[data-theme="dark"]{
+  --bg:#0e0e13; --card:#1a1a22; --ink:#ededf3; --sub:#9999aa; --line:#2b2b37;
+  --accent:#8d81f2; --accent-ink:#12121a; --accent-soft:#262043;
+  --danger:#ff6f61; --danger-soft:#3b1f1c;
+  --good:#4fd18b; --good-soft:#123021;
+  --warn:#e5b65a; --warn-soft:#332912;
+  --chip:#24242f;
+  --kb-bg:#14141b; --key:#2b2b37; --key-alt:#1e1e27; --key-ink:#ededf3;
+  --host:#15151c;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;margin:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Devanagari",sans-serif;
+  display:flex; justify-content:center; overflow:hidden;
+}
+.app{
+  width:100%; max-width:430px; height:100dvh; background:var(--host);
+  display:flex; flex-direction:column; position:relative; overflow:hidden;
+}
+
+/* ===================== Host app simulation ===================== */
+.protobar{
+  background:var(--accent-soft); color:var(--accent);
+  font-size:10.5px; font-weight:700; letter-spacing:.3px;
+  padding:5px 10px; display:flex; align-items:center; gap:6px; justify-content:center;
+  border-bottom:1px solid var(--line);
+}
+.hostbar{
+  background:var(--card); border-bottom:1px solid var(--line);
+  padding:8px 10px; display:flex; align-items:center; gap:6px;
+}
+.appchip{
+  border:1px solid var(--line); background:var(--bg); color:var(--sub);
+  border-radius:999px; padding:5px 11px; font-size:12px; font-weight:600; cursor:pointer;
+}
+.appchip.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.iconbtn{
+  margin-left:auto; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+  width:32px; height:32px; border-radius:9px; font-size:15px; cursor:pointer; flex:none;
+}
+.hostbody{flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px;}
+.bubble{
+  max-width:78%; padding:8px 11px; border-radius:14px; font-size:13.5px; line-height:1.45;
+  background:var(--card); align-self:flex-start; border:1px solid var(--line);
+}
+.bubble.me{background:var(--accent-soft); align-self:flex-end; border-color:transparent;}
+.notepad{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:12px; font-size:13.5px; line-height:1.6; flex:1; white-space:pre-wrap;
+}
+.hostinput{
+  background:var(--card); border-top:1px solid var(--line);
+  padding:8px 10px; display:flex; align-items:flex-end; gap:8px;
+}
+.fakefield{
+  flex:1; min-height:38px; max-height:110px; overflow-y:auto;
+  border:1px solid var(--line); background:var(--bg); border-radius:19px;
+  padding:9px 13px; font-size:13.5px; line-height:1.45; word-break:break-word;
+}
+.fakefield .ph{color:var(--sub);}
+.caret{display:inline-block; width:1.5px; height:15px; background:var(--accent); vertical-align:-3px; animation:blink 1s step-end infinite;}
+@keyframes blink{50%{opacity:0;}}
+.sendbtn{
+  width:38px; height:38px; border-radius:50%; border:none; flex:none;
+  background:var(--accent); color:var(--accent-ink); font-size:15px; cursor:pointer;
+}
+
+/* ===================== Keyboard shell ===================== */
+.kb{background:var(--kb-bg); border-top:1px solid var(--line); flex:none; user-select:none;}
+.kbtop{
+  display:flex; align-items:center; gap:6px; padding:6px 8px;
+  border-bottom:1px solid rgba(128,128,140,.18);
+}
+.langchip{
+  border:none; background:var(--accent); color:var(--accent-ink);
+  border-radius:999px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;
+}
+.kbtopinfo{font-size:10.5px; color:var(--sub); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.kbicon{
+  border:none; background:transparent; color:var(--sub);
+  width:30px; height:28px; border-radius:7px; font-size:14px; cursor:pointer; flex:none;
+}
+.kbicon:active{background:var(--key-alt);}
+
+.panel{display:none; padding:8px; position:relative;}
+.panel.on{display:block;}
+
+/* --- Voice panel --- */
+.vwrap{display:flex; flex-direction:column; align-items:center; gap:8px;}
+.transcript{
+  width:100%; min-height:62px; max-height:88px; overflow-y:auto;
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:9px 11px; font-size:13.5px; line-height:1.5; color:var(--ink);
+}
+.transcript .dim{color:var(--sub);}
+.transcript .partial{color:var(--sub); font-style:italic;}
+.microw{display:flex; align-items:center; gap:14px; width:100%; justify-content:center;}
+.micbtn{
+  width:62px; height:62px; border-radius:50%; border:none; flex:none;
+  background:var(--accent); color:var(--accent-ink); font-size:25px; cursor:pointer;
+  box-shadow:0 2px 10px rgba(91,79,214,.35); transition:transform .1s;
+  touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.micbtn:active{transform:scale(.94);}
+.micbtn.live{background:var(--danger); animation:pulse 1.3s ease-in-out infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(195,58,46,.5);}50%{box-shadow:0 0 0 12px rgba(195,58,46,0);}}
+.micside{
+  border:1px solid var(--line); background:var(--card); color:var(--ink);
+  border-radius:10px; padding:8px 10px; font-size:11.5px; font-weight:600; cursor:pointer; min-width:68px;
+}
+.statusline{font-size:11px; color:var(--sub); min-height:15px; text-align:center;}
+.fixchip{
+  display:inline-block; background:var(--good-soft); color:var(--good);
+  border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700; margin-left:4px;
+}
+.simrow{display:flex; gap:6px; width:100%; overflow-x:auto; padding-bottom:2px;}
+.simrow::-webkit-scrollbar{display:none;}
+.simchip{
+  border:1px dashed var(--accent); background:var(--accent-soft); color:var(--accent);
+  border-radius:999px; padding:5px 10px; font-size:11px; font-weight:600;
+  cursor:pointer; white-space:nowrap; flex:none;
+}
+
+/* --- Edit row --- */
+.editrow{display:flex; gap:5px; width:100%;}
+.editkey{
+  flex:1; background:var(--key); color:var(--key-ink); border:none;
+  border-radius:8px; padding:9px 0; font-size:13px; cursor:pointer;
+  box-shadow:0 1px 0 rgba(0,0,0,.18);
+  touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.editkey:active{background:var(--key-alt);}
+
+/* --- Review bar --- */
+.reviewbar{display:none; padding:8px; background:var(--warn-soft); border-bottom:1px solid var(--line);}
+.reviewbar.on{display:block;}
+.reviewlabel{font-size:10.5px; font-weight:700; color:var(--warn); letter-spacing:.3px; margin-bottom:5px;}
+#reviewText{
+  width:100%; min-height:52px; border:1px solid var(--line); border-radius:10px;
+  background:var(--card); color:var(--ink); padding:8px 10px; font-size:13.5px;
+  line-height:1.5; font-family:inherit; resize:none;
+}
+.reviewbtns{display:flex; gap:6px; margin-top:6px;}
+
+/* --- Suggestion / transliteration strip --- */
+.sugstrip{
+  display:flex; gap:6px; padding:5px 8px; overflow-x:auto;
+  border-bottom:1px solid rgba(128,128,140,.18); min-height:34px; align-items:center;
+}
+.sugstrip::-webkit-scrollbar{display:none;}
+.sug{
+  border:none; background:transparent; color:var(--ink);
+  padding:4px 11px; border-radius:8px; font-size:13.5px; cursor:pointer; white-space:nowrap; flex:none;
+}
+.sug.pick{background:var(--accent-soft); color:var(--accent); font-weight:700;}
+.sugnote{font-size:10.5px; color:var(--sub); padding-left:4px;}
+
+/* --- QWERTY --- */
+.krow{display:flex; gap:5px; margin-bottom:6px; justify-content:center;}
+.key{
+  flex:1; background:var(--key); color:var(--key-ink); border:none; border-radius:7px;
+  padding:11px 0; font-size:16px; cursor:pointer; box-shadow:0 1px 0 rgba(0,0,0,.2);
+  min-width:0;
+  /* stop the browser's own touch scroll/zoom gesture detection from grabbing
+     a held finger — without this, a hold can get cancelled (pointercancel)
+     before our long-press timer ever fires, especially inside a sandboxed
+     preview frame such as an artifact viewer. */
+  touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.key:active{background:var(--key-alt);}
+.key.wide{flex:1.5;}
+.key.xwide{flex:4;}
+.key.alt{background:var(--key-alt); font-size:13px;}
+.key.accent{background:var(--accent); color:var(--accent-ink); font-size:14px;}
+.key.sm{font-size:12.5px;}
+.key.on{background:var(--accent); color:var(--accent-ink);}
+.key.num{opacity:.85; font-size:14.5px;}
+
+/* --- Long-press popup (diacritic picker) --- */
+.lppopup{
+  position:absolute; display:flex; gap:3px; background:var(--key-alt);
+  border-radius:9px; padding:4px; box-shadow:0 4px 14px rgba(0,0,0,.35); z-index:30;
+  transform:translateX(-10px);
+}
+.lpchar{
+  background:var(--key); color:var(--key-ink); border:none; border-radius:6px;
+  min-width:30px; padding:8px 6px; font-size:15px; cursor:pointer; white-space:nowrap;
+  touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.lpchar:active{background:var(--accent); color:var(--accent-ink);}
+
+/* ===================== Sheets ===================== */
+.sheet-overlay{
+  position:absolute; inset:0; background:rgba(0,0,0,.45);
+  display:none; align-items:flex-end; z-index:40;
+}
+.sheet-overlay.on{display:flex;}
+.sheet{
+  width:100%; max-height:92%; overflow-y:auto; background:var(--bg);
+  border-radius:18px 18px 0 0; padding:14px 14px 20px;
+}
+.sheet-handle{width:38px; height:4px; border-radius:2px; background:var(--line); margin:0 auto 12px;}
+.sheet h2{margin:0 0 4px; font-size:17px;}
+.sheet .lede{font-size:12px; color:var(--sub); margin-bottom:12px; line-height:1.5;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:12px; margin-bottom:10px;}
+.card h3{margin:0 0 8px; font-size:13px; letter-spacing:.3px; text-transform:uppercase; color:var(--sub);}
+.field{margin-bottom:10px;}
+.fieldlabel{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--sub); margin-bottom:5px;}
+input[type=text], textarea, select{
+  width:100%; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+  border-radius:10px; padding:10px 12px; font-size:14px; font-family:inherit;
+}
+textarea{min-height:64px; resize:vertical;}
+.rowflex{display:flex; gap:8px;}
+.grow{flex:1;}
+.btn{border:none; border-radius:11px; padding:11px 14px; font-size:13.5px; font-weight:600; cursor:pointer;}
+.btn-accent{background:var(--accent); color:var(--accent-ink);}
+.btn-soft{background:var(--chip); color:var(--ink);}
+.btn-danger{background:var(--danger); color:#fff;}
+.btn-block{display:block; width:100%;}
+.toggleflag{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--line);
+}
+.toggleflag:last-child{border-bottom:none;}
+.tf-label{font-size:13.5px;}
+.tf-sub{font-size:11px; color:var(--sub); margin-top:2px; line-height:1.4;}
+.switch{position:relative; width:44px; height:25px; flex:none;}
+.switch input{opacity:0; width:0; height:0;}
+.slider{
+  position:absolute; inset:0; background:var(--line); border-radius:25px;
+  transition:.2s; cursor:pointer;
+}
+.slider:before{
+  content:""; position:absolute; width:19px; height:19px; left:3px; top:3px;
+  background:#fff; border-radius:50%; transition:.2s;
+}
+.switch input:checked + .slider{background:var(--accent);}
+.switch input:checked + .slider:before{transform:translateX(19px);}
+.seg{display:flex; gap:6px; margin-bottom:10px;}
+.segbtn{
+  flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
+  border-radius:10px; padding:8px 6px; font-size:12px; font-weight:700; cursor:pointer;
+}
+.segbtn.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.listrow{
+  background:var(--card); border:1px solid var(--line); border-radius:11px;
+  padding:10px 12px; margin-bottom:7px; display:flex; align-items:center; gap:10px;
+}
+.listrow .main{flex:1; min-width:0;}
+.listrow .t1{font-size:13.5px; font-weight:600; word-break:break-word;}
+.listrow .t2{font-size:11px; color:var(--sub); margin-top:2px; word-break:break-word;}
+.minibtn{
+  border:none; background:var(--chip); color:var(--ink); border-radius:8px;
+  padding:6px 9px; font-size:11.5px; cursor:pointer; flex:none;
+}
+.minibtn.danger{background:var(--danger-soft); color:var(--danger);}
+.empty{text-align:center; padding:26px 14px; color:var(--sub); font-size:12.5px;}
+.empty .big{font-size:30px; margin-bottom:6px;}
+.permrow{display:flex; align-items:flex-start; gap:9px; padding:8px 0; border-bottom:1px solid var(--line);}
+.permrow:last-child{border-bottom:none;}
+.permmark{font-size:14px; flex:none; width:18px; text-align:center;}
+.permtext{font-size:12.5px; line-height:1.5;}
+.permtext b{display:block; font-size:13px; margin-bottom:1px;}
+.badge{display:inline-block; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700;}
+.badge.good{background:var(--good-soft); color:var(--good);}
+.badge.warn{background:var(--warn-soft); color:var(--warn);}
+
+/* anchored near the top so it never covers the keyboard */
+.toast{
+  position:absolute; top:62px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:9px 15px; border-radius:11px;
+  font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .25s; z-index:60;
+  max-width:88%; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,.25);
+}
+.toast.on{opacity:1;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="protobar">⚠️ PROTOTYPE — speech is simulated, not real transcription</div>
+
+  <!-- ============ HOST APP ============ -->
+  <div class="hostbar">
+    <button class="appchip on" data-app="whatsapp">💬 Chat</button>
+    <button class="appchip" data-app="notes">📝 Notes</button>
+    <button class="appchip" data-app="email">✉️ Email</button>
+    <button class="iconbtn" id="btnTheme">◐</button>
+  </div>
+
+  <div class="hostbody" id="hostBody"></div>
+
+  <div class="hostinput">
+    <div class="fakefield" id="fakeField"><span class="ph">Message…</span></div>
+    <button class="sendbtn" id="btnSend">➤</button>
+  </div>
+
+  <!-- ============ KEYBOARD ============ -->
+  <div class="kb" id="kb">
+
+    <!-- review-before-insert -->
+    <div class="reviewbar" id="reviewBar">
+      <div class="reviewlabel">REVIEW BEFORE INSERTING</div>
+      <textarea id="reviewText"></textarea>
+      <div class="reviewbtns">
+        <button class="btn btn-accent grow" id="btnInsert">Insert</button>
+        <button class="btn btn-soft" id="btnRedictate">↺ Redo</button>
+        <button class="btn btn-soft" id="btnDiscard">Discard</button>
+      </div>
+    </div>
+
+    <div class="kbtop">
+      <button class="langchip" id="btnLang">EN</button>
+      <div class="kbtopinfo" id="kbInfo">Whisper small · offline</div>
+      <button class="kbicon" id="btnHistory" title="History">🕘</button>
+      <button class="kbicon" id="btnSnippets" title="Snippets">⚡</button>
+      <button class="kbicon" id="btnSettings" title="Settings">⚙️</button>
+    </div>
+
+    <!-- suggestion / transliteration strip (QWERTY only) -->
+    <div class="sugstrip" id="sugStrip"></div>
+
+    <!-- VOICE PANEL -->
+    <div class="panel on" id="panelVoice">
+      <div class="vwrap">
+        <div class="transcript" id="transcript"><span class="dim">Hold the mic and speak. Nothing leaves this phone.</span></div>
+        <div class="microw">
+          <button class="micside" id="btnToQwerty">ABC ⌨</button>
+          <button class="micbtn" id="micBtn">🎙</button>
+          <button class="micside" id="btnUndoIns">↶ Undo</button>
+        </div>
+        <div class="statusline" id="statusLine"></div>
+        <div class="simrow" id="simRow"></div>
+        <div class="editrow">
+          <button class="editkey" data-edit="left">◀</button>
+          <button class="editkey" data-edit="right">▶</button>
+          <button class="editkey" data-edit="word">⌫ word</button>
+          <button class="editkey" data-edit="back">⌫</button>
+          <button class="editkey" data-edit="all">Select all</button>
+          <button class="editkey" data-edit="copy">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QWERTY PANEL -->
+    <div class="panel" id="panelQwerty"></div>
+  </div>
+
+  <!-- ============ SHEETS ============ -->
+
+  <!-- Settings -->
+  <div class="sheet-overlay" id="sheetSettings">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Settings</h2>
+      <div class="lede">Everything here stays on this phone.</div>
+
+      <div class="card">
+        <h3>Dictation</h3>
+        <label class="fieldlabel">Mic behaviour</label>
+        <div class="seg" id="segMic">
+          <button class="segbtn on" data-mic="hold">Hold to talk</button>
+          <button class="segbtn" data-mic="tap">Tap to start / stop</button>
+        </div>
+        <label class="fieldlabel">Where the text goes</label>
+        <div class="seg" id="segInsert">
+          <button class="segbtn on" data-ins="direct">Insert straight away</button>
+          <button class="segbtn" data-ins="review">Review first</button>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Automatic punctuation</div><div class="tf-sub">Model adds commas and full stops itself</div></div>
+          <label class="switch"><input type="checkbox" id="setAutoPunct" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Spoken punctuation</div><div class="tf-sub">Saying "comma", "full stop", "new paragraph" works</div></div>
+          <label class="switch"><input type="checkbox" id="setSpokenPunct" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Auto-capitalise sentences</div></div>
+          <label class="switch"><input type="checkbox" id="setAutoCaps" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Stop on silence</div><div class="tf-sub">Ends dictation after a short pause</div></div>
+          <label class="switch"><input type="checkbox" id="setSilence" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Start / stop sound</div></div>
+          <label class="switch"><input type="checkbox" id="setSound" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Per-app behaviour</h3>
+        <div class="lede" style="margin-bottom:8px;">Override "where the text goes" for individual apps.</div>
+        <div id="perAppList"></div>
+      </div>
+
+      <div class="card">
+        <h3>Privacy &amp; safety</h3>
+        <div class="toggleflag">
+          <div><div class="tf-label">Keep recorded audio</div><div class="tf-sub">Off: audio is processed in memory and discarded</div></div>
+          <label class="switch"><input type="checkbox" id="setKeepAudio"><span class="slider"></span></label>
+        </div>
+        <div class="toggleflag">
+          <div><div class="tf-label">Save dictation history</div><div class="tf-sub">Stored on-device only, auto-cleared after 30 days</div></div>
+          <label class="switch"><input type="checkbox" id="setHistory" checked><span class="slider"></span></label>
+        </div>
+        <button class="btn btn-soft btn-block" id="btnOpenPrivacy" style="margin-top:10px;">🔒 What this app can and cannot do</button>
+      </div>
+
+      <div class="card">
+        <h3>Words &amp; models</h3>
+        <button class="btn btn-soft btn-block" id="btnOpenVocab" style="margin-bottom:8px;">📒 Vocabulary &amp; corrections</button>
+        <button class="btn btn-soft btn-block" id="btnOpenModels" style="margin-bottom:8px;">🧠 Speech models</button>
+        <button class="btn btn-soft btn-block" id="btnOpenBackup">💾 Backup &amp; restore</button>
+      </div>
+
+      <button class="btn btn-accent btn-block" id="btnCloseSettings">Done</button>
+    </div>
+  </div>
+
+  <!-- Vocabulary -->
+  <div class="sheet-overlay" id="sheetVocab">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Vocabulary &amp; corrections</h2>
+      <div class="lede">Words the model keeps getting wrong. Applied after transcription, so these work with every model.</div>
+      <div class="card">
+        <div class="rowflex">
+          <div class="field grow"><label class="fieldlabel">When it hears</label><input type="text" id="vcSpoken" placeholder="gem portal"></div>
+          <div class="field grow"><label class="fieldlabel">Write instead</label><input type="text" id="vcWritten" placeholder="GeM portal"></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="btnAddVocab">Add correction</button>
+      </div>
+      <div id="vocabList"></div>
+      <button class="btn btn-soft btn-block" id="btnCloseVocab" style="margin-top:8px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Snippets -->
+  <div class="sheet-overlay" id="sheetSnippets">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Snippets</h2>
+      <div class="lede">Stock text you send often. Tap one to insert it, or say "insert" followed by its name.</div>
+      <div class="card">
+        <div class="field"><label class="fieldlabel">Name / trigger</label><input type="text" id="snTrigger" placeholder="address"></div>
+        <div class="field"><label class="fieldlabel">Full text</label><textarea id="snText" placeholder="Type the full text this expands into…"></textarea></div>
+        <button class="btn btn-accent btn-block" id="btnAddSnippet">Add snippet</button>
+      </div>
+      <div id="snippetList"></div>
+      <button class="btn btn-soft btn-block" id="btnCloseSnippets" style="margin-top:8px;">Close</button>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="sheet-overlay" id="sheetHistory">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Dictation history</h2>
+      <div class="lede">On this phone only. Tap any entry to insert it again.</div>
+      <div class="field"><input type="text" id="histSearch" placeholder="Search history…"></div>
+      <div id="historyList"></div>
+      <div class="empty" id="historyEmpty"><div class="big">🕘</div>Nothing dictated yet.</div>
+      <button class="btn btn-danger btn-block" id="btnClearHistory" style="margin-top:8px;">Clear all history</button>
+      <button class="btn btn-soft btn-block" id="btnCloseHistory" style="margin-top:8px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Models -->
+  <div class="sheet-overlay" id="sheetModels">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Speech models</h2>
+      <div class="lede">Models are imported from a file you download yourself. The app has no internet permission, so it can never fetch anything on its own.</div>
+      <div id="modelList"></div>
+      <button class="btn btn-soft btn-block" id="btnImportModel" style="margin-top:4px;">📂 Import a model file…</button>
+      <button class="btn btn-soft btn-block" id="btnCloseModels" style="margin-top:8px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Privacy -->
+  <div class="sheet-overlay" id="sheetPrivacy">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>What this app can and cannot do</h2>
+      <div class="lede">Every line here is checkable in Android's own app info screen.</div>
+      <div class="card">
+        <div class="permrow"><div class="permmark">🚫</div><div class="permtext"><b>Internet access <span class="badge good">NOT REQUESTED</span></b>The app does not hold the INTERNET permission. It is structurally incapable of sending anything anywhere.</div></div>
+        <div class="permrow"><div class="permmark">🎙</div><div class="permtext"><b>Microphone <span class="badge warn">WHILE DICTATING</span></b>Live only while you hold the mic. Audio is transcribed in memory and discarded.</div></div>
+        <div class="permrow"><div class="permmark">🚫</div><div class="permtext"><b>Clipboard <span class="badge good">NEVER READ</span></b>Unlike most keyboards, this one never inspects what you copy.</div></div>
+        <div class="permrow"><div class="permmark">📂</div><div class="permtext"><b>Storage <span class="badge warn">ON REQUEST</span></b>Only when you pick a model file to import, or export a backup.</div></div>
+        <div class="permrow"><div class="permmark">🚫</div><div class="permtext"><b>Analytics &amp; crash reporting <span class="badge good">NONE</span></b>No telemetry of any kind is collected or sent.</div></div>
+        <div class="permrow"><div class="permmark">📒</div><div class="permtext"><b>What you type and say <span class="badge good">STAYS HERE</span></b>Vocabulary, snippets and history live in this app's private storage and are deletable at any time.</div></div>
+      </div>
+      <button class="btn btn-soft btn-block" id="btnClosePrivacy">Close</button>
+    </div>
+  </div>
+
+  <!-- Backup -->
+  <div class="sheet-overlay" id="sheetBackup">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Backup &amp; restore</h2>
+      <div class="lede">Keep your vocabulary, snippets and settings safe across reinstalls or a new phone.</div>
+      <div class="card">
+        <h3>Export</h3>
+        <button class="btn btn-soft btn-block" id="btnExport">Export settings, vocabulary &amp; snippets</button>
+      </div>
+      <div class="card">
+        <h3>Import</h3>
+        <input type="file" id="importFile" accept="application/json,.json">
+      </div>
+      <div class="card" style="border-color:var(--danger);">
+        <h3 style="color:var(--danger);">Danger zone</h3>
+        <button class="btn btn-danger btn-block" id="btnResetAll">Reset everything</button>
+      </div>
+      <button class="btn btn-soft btn-block" id="btnCloseBackup">Close</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ===================== Storage ===================== */
+const STORE_KEY = "vaaniKeyboardData_v1";
+
+const DEFAULT_VOCAB = [
+  {id:"v1", spoken:"gem portal",  written:"GeM portal"},
+  {id:"v2", spoken:"g f r",       written:"GFR"},
+  {id:"v3", spoken:"n quas",      written:"NQAS"},
+  {id:"v4", spoken:"lakshya",     written:"LaQshya"},
+  {id:"v5", spoken:"o p d",       written:"OPD"},
+  {id:"v6", spoken:"b p",         written:"BP"},
+  {id:"v7", spoken:"s p o two",   written:"SpO2"},
+  {id:"v8", spoken:"i c u",       written:"ICU"}
+];
+
+const DEFAULT_SNIPPETS = [
+  {id:"s1", trigger:"address", text:"Room 214, Administrative Block,\nDistrict Hospital, New Delhi — 110001"},
+  {id:"s2", trigger:"regards", text:"Kind regards,\nR\nHospital Administration"}
+];
+
+const DEFAULT_MODELS = [
+  {id:"m1", name:"Whisper small", size:"466 MB", langs:"99 languages incl. Hindi", streaming:false, installed:true},
+  {id:"m2", name:"Whisper base",  size:"142 MB", langs:"99 languages incl. Hindi", streaming:false, installed:true},
+  {id:"m3", name:"Moonshine tiny",size:"78 MB",  langs:"English only",             streaming:true,  installed:true},
+  {id:"m4", name:"IndicWhisper",  size:"512 MB", langs:"Hindi + Indic, Hinglish",  streaming:false, installed:false}
+];
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function freshDB(){
+  return {
+    theme:"light",
+    lang:"en",
+    app:"whatsapp",
+    settings:{
+      mic:"hold", insert:"direct",
+      autoPunct:true, spokenPunct:true, autoCaps:true,
+      silence:true, sound:true, keepAudio:false, history:true,
+      modelId:"m1",
+      perApp:{ whatsapp:"default", notes:"default", email:"review" }
+    },
+    vocab: DEFAULT_VOCAB.map(v=>Object.assign({}, v)),
+    snippets: DEFAULT_SNIPPETS.map(s=>Object.assign({}, s)),
+    models: DEFAULT_MODELS.map(m=>Object.assign({}, m)),
+    history: [],
+    fields:{ whatsapp:"", notes:"", email:"" }
+  };
+}
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+let db = loadDB() || freshDB();
+function migrate(){
+  const d = freshDB();
+  for(const k in d){ if(db[k]===undefined) db[k] = d[k]; }
+  for(const k in d.settings){ if(db.settings[k]===undefined) db.settings[k] = d.settings[k]; }
+  if(!db.fields) db.fields = d.fields;
+}
+migrate();
+function saveDB(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){} }
+
+/* ===================== Small helpers ===================== */
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("on"), 1900);
+}
+function openSheet(id){ document.getElementById(id).classList.add("on"); }
+function closeSheet(id){ document.getElementById(id).classList.remove("on"); }
+function fmtWhen(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+}
+
+/* ===================== Theme ===================== */
+function applyTheme(){ document.documentElement.setAttribute("data-theme", db.theme); }
+applyTheme();
+document.getElementById("btnTheme").addEventListener("click", ()=>{
+  db.theme = db.theme==="light" ? "dark" : "light";
+  applyTheme(); saveDB();
+});
+
+/* ===================== Host app ===================== */
+const APP_LABEL = { whatsapp:"Chat", notes:"Notes", email:"Email" };
+
+function renderHost(){
+  const body = document.getElementById("hostBody");
+  if(db.app === "whatsapp"){
+    body.innerHTML = `
+      <div class="bubble">Sir, ventilator ka quotation aa gaya hai. Kab tak approve kara dein?</div>
+      <div class="bubble me">Let me check the file today.</div>
+      <div class="bubble">Ji theek hai 🙏</div>`;
+  } else if(db.app === "notes"){
+    body.innerHTML = `<div class="notepad">Ward round notes — ${new Date().toLocaleDateString()}
+
+• Oxygen plant AMC due this month
+• Two suction machines pending repair</div>`;
+  } else {
+    body.innerHTML = `
+      <div class="bubble"><b>To:</b> procurement@hospital.gov.in<br><b>Subject:</b> Ventilator purchase — GeM order status</div>
+      <div class="bubble" style="max-width:100%;">Draft your reply below. Email is set to <b>review before inserting</b>.</div>`;
+  }
+  const ph = db.app==="whatsapp" ? "Message…" : (db.app==="notes" ? "Add to note…" : "Write your reply…");
+  document.getElementById("fakeField").dataset.ph = ph;
+  renderField();
+}
+
+function fieldText(){ return db.fields[db.app] || ""; }
+/* caretPos: where manual typing/deletion happens. null means "follow the end",
+   which is what every path except direct QWERTY typing wants (dictation,
+   undo, snippets, app switches all just want the caret back at the end). */
+let caretPos = null;
+function getCaret(){
+  const len = fieldText().length;
+  return (caretPos === null || caretPos > len || caretPos < 0) ? len : caretPos;
+}
+function setFieldText(v, nextCaret){
+  db.fields[db.app] = v;
+  caretPos = (nextCaret === undefined) ? null : nextCaret;
+  saveDB();
+  renderField();
+}
+
+function renderField(){
+  const f = document.getElementById("fakeField");
+  const txt = fieldText();
+  if(!txt){
+    f.innerHTML = `<span class="ph">${esc(f.dataset.ph || "Message…")}</span><span class="caret"></span>`;
+    f.scrollTop = f.scrollHeight;
+    return;
+  }
+  const pos = getCaret();
+  const before = esc(txt.slice(0, pos)).replace(/\n/g,"<br>");
+  const after = esc(txt.slice(pos)).replace(/\n/g,"<br>");
+  f.innerHTML = before + `<span class="caret"></span>` + after;
+  f.scrollTop = f.scrollHeight;
+}
+
+/* Moves the caret left/right by whole characters, clamped to the text.
+   Shared by the edit-row ◀ ▶ buttons and by holding the space bar. */
+function moveCaret(delta){
+  const len = fieldText().length;
+  caretPos = Math.max(0, Math.min(len, getCaret() + delta));
+  renderField();
+}
+
+/* Caret-aware single-character delete — shared by a tap on backspace,
+   the edit row's ⌫, and holding backspace (which calls this on a repeat timer). */
+function deleteBack(){
+  const t = fieldText();
+  const pos = getCaret();
+  if(pos === 0) return;
+  const next = t.slice(0, pos-1) + t.slice(pos);
+  setFieldText(next, pos-1);
+  renderSugStrip();
+}
+
+document.querySelectorAll(".appchip").forEach(c=>{
+  c.addEventListener("click", ()=>{
+    db.app = c.dataset.app; saveDB();
+    document.querySelectorAll(".appchip").forEach(x=>x.classList.toggle("on", x===c));
+    renderHost();
+    updateKbInfo();
+  });
+});
+
+document.getElementById("btnSend").addEventListener("click", ()=>{
+  if(!fieldText()){ toast("Nothing to send"); return; }
+  setFieldText("");
+  toast("Sent (prototype)");
+});
+
+/* ===================== Language ===================== */
+const LANGS = [
+  {id:"en", label:"EN", name:"English"},
+  {id:"hi", label:"हिं", name:"Hindi"},
+  {id:"mix", label:"EN+हिं", name:"Hinglish"}
+];
+function currentLang(){ return LANGS.find(l=>l.id===db.lang) || LANGS[0]; }
+document.getElementById("btnLang").addEventListener("click", ()=>{
+  const i = LANGS.findIndex(l=>l.id===db.lang);
+  db.lang = LANGS[(i+1) % LANGS.length].id;
+  saveDB(); updateKbInfo(); renderSimRow(); renderSugStrip();
+  toast(currentLang().name);
+});
+function updateKbInfo(){
+  document.getElementById("btnLang").textContent = currentLang().label;
+  const m = db.models.find(x=>x.id===db.settings.modelId) || db.models[0];
+  const mode = effectiveInsertMode()==="review" ? "review first" : "direct";
+  document.getElementById("kbInfo").textContent = `${m.name} · offline · ${mode}`;
+}
+function effectiveInsertMode(){
+  const per = db.settings.perApp[db.app];
+  if(per && per !== "default") return per;
+  return db.settings.insert;
+}
+
+/* ===================== Simulated utterances ===================== */
+/* PROTOTYPE ONLY — a real build streams audio through the model. */
+const UTTERANCES = [
+  { id:"u1", lang:"en", label:"GeM order (English)",
+    raw:"please check the gem portal for the ventilator order comma and share the g f r clause with the finance team full stop" },
+  { id:"u2", lang:"mix", label:"Ward round (Hinglish)",
+    raw:"kal morning ko o p d ka round hai please ensure ki sab equipment check ho jaye" },
+  { id:"u3", lang:"en", label:"Vitals (vocabulary)",
+    raw:"patient ka b p is one forty over ninety and s p o two is ninety six percent" },
+  { id:"u4", lang:"hi", label:"Hindi (Devanagari)",
+    raw:"कल सुबह दस बजे बैठक है कृपया रिपोर्ट तैयार रखें" },
+  { id:"u5", lang:"en", label:"Letter (spoken punctuation)",
+    raw:"dear sir comma please find the inspection report attached full stop new paragraph kindly approve at the earliest full stop" },
+  { id:"u6", lang:"en", label:"Snippet by voice",
+    raw:"insert address" }
+];
+
+function renderSimRow(){
+  const row = document.getElementById("simRow");
+  const list = UTTERANCES.filter(u => db.lang==="mix" ? true : (u.lang===db.lang || u.lang==="en"));
+  row.innerHTML = "";
+  const note = document.createElement("span");
+  note.className = "simchip";
+  note.style.borderStyle = "solid";
+  note.style.opacity = ".75";
+  note.textContent = "demo phrases →";
+  note.style.cursor = "default";
+  row.appendChild(note);
+  list.forEach(u=>{
+    const b = document.createElement("button");
+    b.className = "simchip";
+    b.textContent = u.label;
+    b.dataset.utt = u.id;
+    b.addEventListener("click", ()=>{ pendingUtterance = u.id; toast("Next dictation: " + u.label); });
+    row.appendChild(b);
+  });
+}
+let pendingUtterance = null;
+
+/* ===================== Transcription post-processing ===================== */
+const PUNCT_MAP = {
+  "comma":",", "full stop":".", "period":".", "question mark":"?",
+  "exclamation mark":"!", "colon":":", "semicolon":";", "new line":"\n", "new paragraph":"\n\n"
+};
+
+function applySpokenPunctuation(text){
+  if(!db.settings.spokenPunct) return {text, hits:0};
+  let out = text, hits = 0;
+  // longest phrases first so "new paragraph" wins over "new line"
+  Object.keys(PUNCT_MAP).sort((a,b)=>b.length-a.length).forEach(phrase=>{
+    const re = new RegExp("\\s*\\b" + phrase.replace(/ /g,"\\s+") + "\\b", "gi");
+    out = out.replace(re, m => { hits++; return PUNCT_MAP[phrase]; });
+  });
+  return {text: out, hits};
+}
+
+function applyVocabulary(text){
+  let out = text; const fired = [];
+  db.vocab.forEach(v=>{
+    if(!v.spoken) return;
+    const re = new RegExp("\\b" + v.spoken.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\s+/g,"\\s+") + "\\b", "gi");
+    if(re.test(out)){
+      out = out.replace(re, v.written);
+      fired.push(v.written);
+    }
+  });
+  return {text: out, fired};
+}
+
+function applyAutoCaps(text){
+  if(!db.settings.autoCaps) return text;
+  let out = text.replace(/(^|[.!?]\s+|\n\s*)([a-z])/g, (m,p,c)=> p + c.toUpperCase());
+  return out;
+}
+
+function tidySpacing(text){
+  return text
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?=\S)/g, "$1 ")
+    .replace(/\.(?=[A-Za-z])/g, ". ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ *\n */g, "\n")
+    .trim();
+}
+
+function postProcess(raw){
+  let fired = [];
+  let t = raw;
+  const sp = applySpokenPunctuation(t); t = sp.text;
+  const vc = applyVocabulary(t); t = vc.text; fired = vc.fired;
+  if(db.settings.autoPunct && !/[.!?]\s*$/.test(t)) t = t + ".";
+  t = tidySpacing(t);
+  t = applyAutoCaps(t);
+  return {text:t, fired};
+}
+
+/* snippet-by-voice: "insert <trigger>" */
+function trySnippetCommand(raw){
+  const m = raw.trim().match(/^insert\s+(.+)$/i);
+  if(!m) return null;
+  const want = m[1].trim().toLowerCase().replace(/[.!?]+$/,"");
+  const sn = db.snippets.find(s => s.trigger.toLowerCase() === want);
+  return sn ? sn.text : null;
+}
+
+/* ===================== Dictation engine (simulated) ===================== */
+let listening = false, streamTimer = null, lastInsertion = null;
+
+function pickUtterance(){
+  if(pendingUtterance){
+    const u = UTTERANCES.find(x=>x.id===pendingUtterance);
+    pendingUtterance = null;
+    if(u) return u;
+  }
+  const pool = UTTERANCES.filter(u => db.lang==="hi" ? u.lang==="hi" : (db.lang==="mix" ? true : u.lang!=="hi"));
+  return pool[Math.floor(Math.random()*pool.length)] || UTTERANCES[0];
+}
+
+function startListening(){
+  if(listening) return;
+  listening = true;
+  const btn = document.getElementById("micBtn");
+  btn.classList.add("live");
+  btn.textContent = "⏺";
+  document.getElementById("statusLine").textContent = "Listening… audio stays in memory";
+  const utt = pickUtterance();
+  const words = utt.raw.split(/\s+/);
+  let i = 0;
+  const tr = document.getElementById("transcript");
+  tr.innerHTML = `<span class="partial">…</span>`;
+  streamTimer = setInterval(()=>{
+    if(i >= words.length){ stopListening(words.join(" ")); return; }
+    i++;
+    const shown = words.slice(0, i).join(" ");
+    tr.innerHTML = esc(shown) + ` <span class="partial">▍</span>`;
+    tr.scrollTop = tr.scrollHeight;
+  }, 150);
+  streamState = {words, get i(){ return i; }};
+}
+let streamState = null;
+
+function stopListening(forcedRaw){
+  if(!listening) return;
+  listening = false;
+  clearInterval(streamTimer);
+  const btn = document.getElementById("micBtn");
+  btn.classList.remove("live");
+  btn.textContent = "🎙";
+
+  let raw = forcedRaw;
+  if(raw == null && streamState){
+    raw = streamState.words.slice(0, Math.max(1, streamState.i)).join(" ");
+  }
+  if(!raw){ document.getElementById("statusLine").textContent = ""; return; }
+
+  // snippet command?
+  const snip = trySnippetCommand(raw);
+  if(snip){
+    document.getElementById("transcript").innerHTML = esc(raw);
+    document.getElementById("statusLine").innerHTML = `Snippet matched <span class="fixchip">⚡ snippet</span>`;
+    deliver(snip);
+    return;
+  }
+
+  const {text, fired} = postProcess(raw);
+  document.getElementById("transcript").innerHTML = esc(text);
+  const chips = fired.length ? fired.map(f=>`<span class="fixchip">${esc(f)} ✓</span>`).join("") : "";
+  document.getElementById("statusLine").innerHTML =
+    (fired.length ? `Corrected ${fired.length} term${fired.length>1?"s":""}` : "Transcribed on-device") + chips;
+  deliver(text);
+}
+
+function deliver(text){
+  if(effectiveInsertMode() === "review"){
+    document.getElementById("reviewText").value = text;
+    document.getElementById("reviewBar").classList.add("on");
+  } else {
+    insertText(text);
+  }
+}
+
+function insertText(text){
+  const cur = fieldText();
+  const joiner = (!cur || /\s$|\n$/.test(cur)) ? "" : " ";
+  const next = cur + joiner + text;
+  lastInsertion = {before: cur, after: next};
+  setFieldText(next);
+  if(db.settings.history){
+    db.history.unshift({id:uid(), text, at:Date.now(), app:db.app, lang:db.lang});
+    db.history = db.history.slice(0, 100);
+    saveDB();
+  }
+  toast("Inserted");
+}
+
+document.getElementById("micBtn").addEventListener("pointerdown", (e)=>{
+  if(db.settings.mic !== "hold") return;
+  e.preventDefault();
+  startListening();
+});
+document.getElementById("micBtn").addEventListener("pointerup", ()=>{
+  if(db.settings.mic !== "hold") return;
+  stopListening();
+});
+document.getElementById("micBtn").addEventListener("pointerleave", ()=>{
+  if(db.settings.mic !== "hold") return;
+  if(listening) stopListening();
+});
+document.getElementById("micBtn").addEventListener("click", ()=>{
+  if(db.settings.mic !== "tap") return;
+  if(listening) stopListening(); else startListening();
+});
+
+document.getElementById("btnUndoIns").addEventListener("click", ()=>{
+  if(!lastInsertion){ toast("Nothing to undo"); return; }
+  setFieldText(lastInsertion.before);
+  lastInsertion = null;
+  toast("Insertion undone");
+});
+
+/* Review bar */
+document.getElementById("btnInsert").addEventListener("click", ()=>{
+  const t = document.getElementById("reviewText").value.trim();
+  document.getElementById("reviewBar").classList.remove("on");
+  if(t) insertText(t);
+});
+document.getElementById("btnDiscard").addEventListener("click", ()=>{
+  document.getElementById("reviewBar").classList.remove("on");
+  toast("Discarded");
+});
+document.getElementById("btnRedictate").addEventListener("click", ()=>{
+  document.getElementById("reviewBar").classList.remove("on");
+  startListening();
+  setTimeout(()=>{ if(listening) stopListening(); }, 1400);
+});
+
+/* ===================== Edit row ===================== */
+document.querySelectorAll("[data-edit]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    const t = fieldText();
+    switch(b.dataset.edit){
+      case "back": deleteBack(); break;
+      case "word": {
+        const pos = getCaret();
+        const head = t.slice(0, pos).replace(/\s*\S+\s*$/, "");
+        setFieldText(head + t.slice(pos), head.length);
+        break;
+      }
+      case "all": toast(t ? "All text selected" : "Nothing to select"); break;
+      case "copy": toast(t ? "Copied" : "Nothing to copy"); break;
+      case "left": moveCaret(-1); break;
+      case "right": moveCaret(1); break;
+    }
+  });
+});
+
+/* ===================== QWERTY panel ===================== */
+const LAYOUTS = {
+  letters: [
+    ["1","2","3","4","5","6","7","8","9","0"],
+    ["q","w","e","r","t","y","u","i","o","p"],
+    ["a","s","d","f","g","h","j","k","l"],
+    ["shift","z","x","c","v","b","n","m","back"]
+  ],
+  symbols: [
+    ["1","2","3","4","5","6","7","8","9","0"],
+    ["@","#","₹","_","&","-","+","(",")","/"],
+    ["more","*","\"","'",":",";","!","?","back"]
+  ],
+  more: [
+    ["~","`","|","•","√","π","÷","×","¶","∆"],
+    ["£","¢","€","¥","^","°","=","{","}","\\"],
+    ["sym","%","©","®","™","[","]","<",">","back"]
+  ]
+};
+let kbLayer = "letters", shiftOn = false;
+
+function renderQwerty(){
+  const host = document.getElementById("panelQwerty");
+  const rows = LAYOUTS[kbLayer];
+  let html = "";
+  rows.forEach(row=>{
+    html += `<div class="krow">`;
+    row.forEach(k=>{
+      if(k === "shift"){
+        html += `<button class="key alt wide${shiftOn?" on":""}" data-k="shift">⇧</button>`;
+      } else if(k === "back"){
+        html += `<button class="key alt wide" data-k="back">⌫</button>`;
+      } else if(k === "more"){
+        html += `<button class="key alt wide sm" data-k="more">≈\\&lt;</button>`;
+      } else if(k === "sym"){
+        html += `<button class="key alt wide sm" data-k="sym">?123</button>`;
+      } else {
+        const label = (kbLayer==="letters" && shiftOn) ? k.toUpperCase() : k;
+        const numCls = (kbLayer==="letters" && /^[0-9]$/.test(k)) ? " num" : "";
+        html += `<button class="key${numCls}" data-k="${esc(k)}">${esc(label)}</button>`;
+      }
+    });
+    html += `</div>`;
+  });
+  const layerKey = kbLayer === "letters"
+    ? `<button class="key alt wide sm" data-k="sym">?123</button>`
+    : `<button class="key alt wide sm" data-k="abc">ABC</button>`;
+  html += `<div class="krow">
+      ${layerKey}
+      <button class="key alt" data-k=",">,</button>
+      <button class="key accent" data-k="mic">🎙</button>
+      <button class="key xwide" data-k=" ">${esc(currentLang().name)}</button>
+      <button class="key alt" data-k=".">.</button>
+      <button class="key accent wide" data-k="enter">⏎</button>
+    </div>`;
+  host.innerHTML = html;
+  host.querySelectorAll("[data-k]").forEach(btn=>bindKeyPress(btn));
+}
+
+/* ===================== Long-press (hold-to-pick / repeat / cursor) ===================== */
+/* Real keyboards distinguish a tap from a hold on the SAME key:
+   - letters with diacritics, and the period key: hold shows a popup of alternates
+   - backspace: hold repeats deletion
+   - space bar: hold and slide left/right to move the caret, like a trackpad
+   Implemented as a tap/hold race: a timer armed on pointerdown decides
+   which behaviour fires; a tap is whatever's left if the timer never got there. */
+const LONGPRESS_MS = 420;
+const CURSOR_STEP_PX = 14; // how far (px) a slide on the held space bar moves the caret by one character
+const LONGPRESS_CHARS = {
+  a:["á","à","â","ã","ä"], e:["é","è","ê","ë"], i:["í","ì","î","ï"],
+  o:["ó","ò","ô","õ","ö"], u:["ú","ù","û","ü"], n:["ñ"], c:["ç"],
+  s:["ś","š"], y:["ÿ"], z:["ž"],
+  ".": [".com", ".in", ".org", "..."]
+};
+let lpTimer = null, lpRepeatTimer = null, lpAction = null, lpCursorAnchorX = 0;
+
+function closeLongPressPopup(){
+  const p = document.getElementById("lpPopup");
+  if(p) p.remove();
+}
+
+function openLongPressPopup(btn, chars){
+  closeLongPressPopup();
+  const host = document.getElementById("panelQwerty");
+  const hostRect = host.getBoundingClientRect();
+  const rect = btn.getBoundingClientRect();
+  const pop = document.createElement("div");
+  pop.id = "lpPopup";
+  pop.className = "lppopup";
+  pop.style.left = Math.max(0, rect.left - hostRect.left) + "px";
+  pop.style.bottom = (hostRect.bottom - rect.top + 4) + "px";
+  pop.innerHTML = chars.map(c=>`<button class="lpchar" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  host.appendChild(pop);
+  pop.querySelectorAll("[data-c]").forEach(cb=>{
+    cb.addEventListener("pointerup", (e)=>{
+      e.stopPropagation();
+      insertChar(cb.dataset.c);
+      closeLongPressPopup();
+      lpAction = null;
+    });
+  });
+}
+
+function endPress(key, btn, e){
+  clearTimeout(lpTimer);
+  if(lpRepeatTimer){ clearInterval(lpRepeatTimer); lpRepeatTimer = null; }
+  if(lpAction === "popup"){
+    // released on the base key itself, not on a popup choice -> base char, Gboard-style
+    closeLongPressPopup();
+    insertChar(key);
+  } else if(lpAction === "cursor"){
+    try{ btn.releasePointerCapture(e.pointerId); }catch(err){ /* already released */ }
+  } else if(lpAction !== "repeat"){
+    handleKey(key);
+  }
+  lpAction = null;
+}
+
+function bindKeyPress(btn){
+  const key = btn.dataset.k;
+  btn.addEventListener("pointerdown", (e)=>{
+    e.preventDefault();
+    lpAction = null;
+    lpTimer = setTimeout(()=>{
+      if(key === "back"){
+        lpAction = "repeat";
+        deleteBack();
+        lpRepeatTimer = setInterval(deleteBack, 90);
+      } else if(key === " "){
+        lpAction = "cursor";
+        lpCursorAnchorX = e.clientX;
+        try{ btn.setPointerCapture(e.pointerId); }catch(err){ /* not supported, fine */ }
+        toast("◀ ▶ slide to move cursor");
+      } else if(LONGPRESS_CHARS[key] && (kbLayer === "letters" || key === ".")){
+        lpAction = "popup";
+        openLongPressPopup(btn, LONGPRESS_CHARS[key]);
+      }
+    }, LONGPRESS_MS);
+  });
+  // Only matters while this key holds pointer capture (space, mid-cursor-drag);
+  // harmless no-op for every other key since they never capture the pointer.
+  btn.addEventListener("pointermove", (e)=>{
+    if(lpAction !== "cursor") return;
+    const dx = e.clientX - lpCursorAnchorX;
+    const steps = Math.trunc(dx / CURSOR_STEP_PX);
+    if(steps !== 0){
+      moveCaret(steps);
+      lpCursorAnchorX += steps * CURSOR_STEP_PX;
+    }
+  });
+  btn.addEventListener("pointerup", (e)=>endPress(key, btn, e));
+  btn.addEventListener("pointerleave", ()=>{
+    clearTimeout(lpTimer);
+    if(lpRepeatTimer){ clearInterval(lpRepeatTimer); lpRepeatTimer = null; }
+  });
+  btn.addEventListener("pointercancel", ()=>{
+    clearTimeout(lpTimer);
+    if(lpRepeatTimer){ clearInterval(lpRepeatTimer); lpRepeatTimer = null; }
+    closeLongPressPopup();
+    lpAction = null;
+  });
+}
+
+/* transliteration demo dictionary (prototype scaffolding) */
+const TRANSLIT = {
+  kal:["कल","काल"], subah:["सुबह"], das:["दस"], baje:["बजे"], baithak:["बैठक","बैठकें"],
+  hai:["है"], namaste:["नमस्ते"], report:["रिपोर्ट"], taiyar:["तैयार"], rakhen:["रखें"],
+  kripya:["कृपया"], theek:["ठीक"], ji:["जी"], aaj:["आज"], kaam:["काम"], round:["राउंड"]
+};
+/* The word being typed is always derived from the text before the cursor,
+   never tracked separately — otherwise it drifts out of sync with the field
+   after dictation, undo, suggestion picks or an app switch. */
+function currentWord(){
+  const m = fieldText().slice(0, getCaret()).match(/([A-Za-zऀ-ॿ]+)$/);
+  return m ? m[1] : "";
+}
+
+function renderSugStrip(){
+  const strip = document.getElementById("sugStrip");
+  const qwertyOn = document.getElementById("panelQwerty").classList.contains("on");
+  if(!qwertyOn){
+    strip.innerHTML = `<span class="sugnote">🔒 Offline · nothing is sent anywhere</span>`;
+    return;
+  }
+  const word = currentWord();
+  if(db.lang !== "en" && word){
+    const cands = TRANSLIT[word.toLowerCase()] || [];
+    if(cands.length){
+      strip.innerHTML = `<button class="sug pick" data-sug="${esc(word)}">${esc(word)}</button>` +
+        cands.map(c=>`<button class="sug" data-sug="${esc(c)}">${esc(c)}</button>`).join("");
+      strip.querySelectorAll("[data-sug]").forEach(b=>{
+        b.addEventListener("click", ()=>{
+          const t = fieldText();
+          const pos = getCaret();
+          const head = t.slice(0, pos).replace(/([A-Za-zऀ-ॿ]+)$/, "");
+          const insert = b.dataset.sug + " ";
+          setFieldText(head + insert + t.slice(pos), head.length + insert.length);
+          renderSugStrip();
+        });
+      });
+      return;
+    }
+  }
+  if(word){
+    strip.innerHTML = `<button class="sug pick" data-sug="${esc(word)}">${esc(word)}</button>
+                       <span class="sugnote">${db.lang==="en" ? "suggestions are local" : "type in Latin → Devanagari"}</span>`;
+  } else {
+    strip.innerHTML = `<span class="sugnote">🔒 ${db.lang==="en" ? "Offline · no word leaves this phone" : "Hindi mode · type in Latin letters"}</span>`;
+  }
+}
+
+function handleKey(k){
+  if(k === "shift"){ shiftOn = !shiftOn; renderQwerty(); return; }
+  if(k === "sym"){ kbLayer = "symbols"; shiftOn=false; renderQwerty(); return; }
+  if(k === "more"){ kbLayer = "more"; renderQwerty(); return; }
+  if(k === "abc"){ kbLayer = "letters"; renderQwerty(); return; }
+  if(k === "mic"){ showPanel("voice"); return; }
+  if(k === "back"){ deleteBack(); return; }
+  if(k === "enter"){ insertChar("\n"); return; }
+  insertChar(k);
+}
+
+function insertChar(ch){
+  let out = ch;
+  if(kbLayer === "letters" && shiftOn){ out = ch.toUpperCase(); shiftOn = false; renderQwerty(); }
+  const t = fieldText();
+  const pos = getCaret();
+  const next = t.slice(0, pos) + out + t.slice(pos);
+  setFieldText(next, pos + out.length);
+  renderSugStrip();
+}
+
+function showPanel(which){
+  document.getElementById("panelVoice").classList.toggle("on", which==="voice");
+  document.getElementById("panelQwerty").classList.toggle("on", which==="qwerty");
+  if(which==="qwerty") renderQwerty();
+  renderSugStrip();
+}
+document.getElementById("btnToQwerty").addEventListener("click", ()=>showPanel("qwerty"));
+
+/* ===================== Settings ===================== */
+document.getElementById("btnSettings").addEventListener("click", ()=>{ syncSettingsUI(); openSheet("sheetSettings"); });
+document.getElementById("btnCloseSettings").addEventListener("click", ()=>closeSheet("sheetSettings"));
+
+function syncSettingsUI(){
+  document.querySelectorAll("#segMic .segbtn").forEach(b=>b.classList.toggle("on", b.dataset.mic===db.settings.mic));
+  document.querySelectorAll("#segInsert .segbtn").forEach(b=>b.classList.toggle("on", b.dataset.ins===db.settings.insert));
+  document.getElementById("setAutoPunct").checked = db.settings.autoPunct;
+  document.getElementById("setSpokenPunct").checked = db.settings.spokenPunct;
+  document.getElementById("setAutoCaps").checked = db.settings.autoCaps;
+  document.getElementById("setSilence").checked = db.settings.silence;
+  document.getElementById("setSound").checked = db.settings.sound;
+  document.getElementById("setKeepAudio").checked = db.settings.keepAudio;
+  document.getElementById("setHistory").checked = db.settings.history;
+  renderPerApp();
+}
+document.querySelectorAll("#segMic .segbtn").forEach(b=>{
+  b.addEventListener("click", ()=>{ db.settings.mic = b.dataset.mic; saveDB(); syncSettingsUI();
+    toast(b.dataset.mic==="hold" ? "Hold the mic to speak" : "Tap to start, tap to stop"); });
+});
+document.querySelectorAll("#segInsert .segbtn").forEach(b=>{
+  b.addEventListener("click", ()=>{ db.settings.insert = b.dataset.ins; saveDB(); syncSettingsUI(); updateKbInfo(); });
+});
+[["setAutoPunct","autoPunct"],["setSpokenPunct","spokenPunct"],["setAutoCaps","autoCaps"],
+ ["setSilence","silence"],["setSound","sound"],["setKeepAudio","keepAudio"],["setHistory","history"]].forEach(([el,key])=>{
+  document.getElementById(el).addEventListener("change", e=>{
+    db.settings[key] = e.target.checked; saveDB();
+    if(key==="keepAudio" && e.target.checked) toast("Audio will be kept on-device until you delete it");
+  });
+});
+
+function renderPerApp(){
+  const host = document.getElementById("perAppList");
+  host.innerHTML = "";
+  Object.keys(APP_LABEL).forEach(appId=>{
+    const row = document.createElement("div");
+    row.className = "listrow";
+    const val = db.settings.perApp[appId] || "default";
+    row.innerHTML = `
+      <div class="main"><div class="t1">${esc(APP_LABEL[appId])}</div></div>
+      <select data-app="${appId}" style="width:auto;padding:7px 9px;font-size:12.5px;">
+        <option value="default"${val==="default"?" selected":""}>Follow default</option>
+        <option value="direct"${val==="direct"?" selected":""}>Insert straight away</option>
+        <option value="review"${val==="review"?" selected":""}>Review first</option>
+      </select>`;
+    row.querySelector("select").addEventListener("change", e=>{
+      db.settings.perApp[appId] = e.target.value; saveDB(); updateKbInfo();
+    });
+    host.appendChild(row);
+  });
+}
+
+/* ===================== Vocabulary ===================== */
+document.getElementById("btnOpenVocab").addEventListener("click", ()=>{ renderVocab(); openSheet("sheetVocab"); });
+document.getElementById("btnCloseVocab").addEventListener("click", ()=>closeSheet("sheetVocab"));
+document.getElementById("btnAddVocab").addEventListener("click", ()=>{
+  const sp = document.getElementById("vcSpoken").value.trim();
+  const wr = document.getElementById("vcWritten").value.trim();
+  if(!sp || !wr){ toast("Fill in both boxes"); return; }
+  db.vocab.unshift({id:uid(), spoken:sp, written:wr});
+  saveDB();
+  document.getElementById("vcSpoken").value = "";
+  document.getElementById("vcWritten").value = "";
+  renderVocab(); toast("Correction added");
+});
+function renderVocab(){
+  const host = document.getElementById("vocabList");
+  host.innerHTML = "";
+  if(!db.vocab.length){
+    host.innerHTML = `<div class="empty"><div class="big">📒</div>No corrections yet.</div>`;
+    return;
+  }
+  db.vocab.forEach(v=>{
+    const row = document.createElement("div");
+    row.className = "listrow";
+    row.innerHTML = `<div class="main">
+        <div class="t1">${esc(v.written)}</div>
+        <div class="t2">heard as "${esc(v.spoken)}"</div>
+      </div>
+      <button class="minibtn danger">Delete</button>`;
+    row.querySelector("button").addEventListener("click", ()=>{
+      db.vocab = db.vocab.filter(x=>x.id!==v.id); saveDB(); renderVocab(); toast("Removed");
+    });
+    host.appendChild(row);
+  });
+}
+
+/* ===================== Snippets ===================== */
+document.getElementById("btnSnippets").addEventListener("click", ()=>{ renderSnippets(); openSheet("sheetSnippets"); });
+document.getElementById("btnCloseSnippets").addEventListener("click", ()=>closeSheet("sheetSnippets"));
+document.getElementById("btnAddSnippet").addEventListener("click", ()=>{
+  const tr = document.getElementById("snTrigger").value.trim();
+  const tx = document.getElementById("snText").value.trim();
+  if(!tr || !tx){ toast("Fill in both boxes"); return; }
+  db.snippets.unshift({id:uid(), trigger:tr, text:tx});
+  saveDB();
+  document.getElementById("snTrigger").value = "";
+  document.getElementById("snText").value = "";
+  renderSnippets(); toast("Snippet added");
+});
+function renderSnippets(){
+  const host = document.getElementById("snippetList");
+  host.innerHTML = "";
+  if(!db.snippets.length){
+    host.innerHTML = `<div class="empty"><div class="big">⚡</div>No snippets yet.</div>`;
+    return;
+  }
+  db.snippets.forEach(s=>{
+    const row = document.createElement("div");
+    row.className = "listrow";
+    row.innerHTML = `<div class="main">
+        <div class="t1">${esc(s.trigger)}</div>
+        <div class="t2">${esc(s.text.replace(/\n/g," ⏎ ").slice(0,80))}</div>
+      </div>
+      <button class="minibtn insert">Insert</button>
+      <button class="minibtn danger">✕</button>`;
+    row.querySelector(".insert").addEventListener("click", ()=>{
+      closeSheet("sheetSnippets"); insertText(s.text);
+    });
+    row.querySelector(".danger").addEventListener("click", ()=>{
+      db.snippets = db.snippets.filter(x=>x.id!==s.id); saveDB(); renderSnippets(); toast("Removed");
+    });
+    host.appendChild(row);
+  });
+}
+
+/* ===================== History ===================== */
+document.getElementById("btnHistory").addEventListener("click", ()=>{ renderHistory(); openSheet("sheetHistory"); });
+document.getElementById("btnCloseHistory").addEventListener("click", ()=>closeSheet("sheetHistory"));
+document.getElementById("histSearch").addEventListener("input", renderHistory);
+document.getElementById("btnClearHistory").addEventListener("click", ()=>{
+  db.history = []; saveDB(); renderHistory(); toast("History cleared");
+});
+function renderHistory(){
+  const q = (document.getElementById("histSearch").value || "").toLowerCase();
+  const host = document.getElementById("historyList");
+  const list = db.history.filter(h => !q || h.text.toLowerCase().includes(q));
+  host.innerHTML = "";
+  document.getElementById("historyEmpty").style.display = list.length ? "none" : "block";
+  list.forEach(h=>{
+    const row = document.createElement("div");
+    row.className = "listrow";
+    row.innerHTML = `<div class="main">
+        <div class="t1">${esc(h.text.slice(0,110))}</div>
+        <div class="t2">${esc(APP_LABEL[h.app]||h.app)} · ${esc(fmtWhen(h.at))}</div>
+      </div>
+      <button class="minibtn">Insert</button>`;
+    row.querySelector("button").addEventListener("click", ()=>{
+      closeSheet("sheetHistory"); insertText(h.text);
+    });
+    host.appendChild(row);
+  });
+}
+
+/* ===================== Models ===================== */
+document.getElementById("btnOpenModels").addEventListener("click", ()=>{ renderModels(); openSheet("sheetModels"); });
+document.getElementById("btnCloseModels").addEventListener("click", ()=>closeSheet("sheetModels"));
+document.getElementById("btnImportModel").addEventListener("click", ()=>{
+  toast("Prototype: in the app this opens the file picker");
+});
+function renderModels(){
+  const host = document.getElementById("modelList");
+  host.innerHTML = "";
+  db.models.forEach(m=>{
+    const row = document.createElement("div");
+    row.className = "listrow";
+    const active = db.settings.modelId === m.id;
+    row.innerHTML = `<div class="main">
+        <div class="t1">${esc(m.name)} ${m.streaming?'<span class="badge good">live text</span>':''}</div>
+        <div class="t2">${esc(m.size)} · ${esc(m.langs)}${m.installed?"":" · not imported"}</div>
+      </div>
+      <button class="minibtn" ${m.installed?"":"disabled style=\"opacity:.45\""}>${active?"✓ In use":"Use"}</button>`;
+    const btn = row.querySelector("button");
+    if(m.installed){
+      btn.addEventListener("click", ()=>{
+        db.settings.modelId = m.id; saveDB(); renderModels(); updateKbInfo();
+        toast(m.name + " selected");
+      });
+    }
+    host.appendChild(row);
+  });
+}
+
+/* ===================== Privacy ===================== */
+document.getElementById("btnOpenPrivacy").addEventListener("click", ()=>openSheet("sheetPrivacy"));
+document.getElementById("btnClosePrivacy").addEventListener("click", ()=>closeSheet("sheetPrivacy"));
+
+/* ===================== Backup ===================== */
+document.getElementById("btnOpenBackup").addEventListener("click", ()=>openSheet("sheetBackup"));
+document.getElementById("btnCloseBackup").addEventListener("click", ()=>closeSheet("sheetBackup"));
+document.getElementById("btnExport").addEventListener("click", ()=>{
+  const payload = {
+    type:"vaani-keyboard-backup", exportedAt:Date.now(),
+    settings:db.settings, vocab:db.vocab, snippets:db.snippets, lang:db.lang, theme:db.theme
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "vaani-backup.json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast("Backup exported");
+});
+document.getElementById("importFile").addEventListener("change", e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    let p;
+    try{ p = JSON.parse(r.result); }catch(err){ toast("That isn't a valid backup file"); e.target.value=""; return; }
+    if(!p || p.type !== "vaani-keyboard-backup"){ toast("Not a Vaani backup"); e.target.value=""; return; }
+    if(p.settings) db.settings = Object.assign(db.settings, p.settings);
+    if(Array.isArray(p.vocab)) db.vocab = p.vocab;
+    if(Array.isArray(p.snippets)) db.snippets = p.snippets;
+    if(p.lang) db.lang = p.lang;
+    if(p.theme) db.theme = p.theme;
+    saveDB(); migrate(); applyTheme(); syncSettingsUI(); updateKbInfo(); renderSimRow();
+    e.target.value = "";
+    toast("Backup restored");
+  };
+  r.readAsText(f);
+});
+document.getElementById("btnResetAll").addEventListener("click", ()=>{
+  if(!confirm("Reset everything — settings, vocabulary, snippets and history?")) return;
+  db = freshDB(); saveDB(); applyTheme(); renderAll();
+  closeSheet("sheetBackup"); closeSheet("sheetSettings");
+  toast("Everything reset");
+});
+
+/* close sheets by tapping the dim area */
+document.querySelectorAll(".sheet-overlay").forEach(ov=>{
+  ov.addEventListener("click", e=>{ if(e.target === ov) ov.classList.remove("on"); });
+});
+
+/* ===================== Boot ===================== */
+function renderAll(){
+  document.querySelectorAll(".appchip").forEach(x=>x.classList.toggle("on", x.dataset.app===db.app));
+  renderHost();
+  updateKbInfo();
+  renderSimRow();
+  renderSugStrip();
+  showPanel("voice");
+}
+renderAll();
+</script>
+</body>
+</html>
