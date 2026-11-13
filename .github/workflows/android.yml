@@ -90,6 +90,11 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
+            # Install the app FIRST — `adb shell ime enable` fails with
+            # "Unknown input method" if the IME's package isn't on the
+            # device yet, and connectedDebugAndroidTest alone doesn't
+            # install app + test APK until the test run itself starts.
+            ./gradlew installDebug --console=plain
             # Make Vaani the active system keyboard before the test suite
             # runs, exactly the way real third-party keyboard apps validate
             # themselves in CI (see VaaniImeInstrumentedTest's doc comment).
