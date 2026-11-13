@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vaani</string>
+    <string name="subtype_english">English</string>
+    <string name="subtype_hindi">Hindi</string>
+
+    <string name="mic_permission_rationale">Vaani needs the microphone to turn your speech into text — entirely on this phone, nothing is sent anywhere.</string>
+
+    <string name="enable_title">Turn on Vaani</string>
+    <string name="enable_step_not_enabled">Vaani isn\'t turned on as a keyboard yet. Tap below to open Android\'s keyboard list, then switch Vaani on.</string>
+    <string name="enable_step_not_selected">Vaani is turned on. Now tap below to pick it as the keyboard you\'re typing with right now.</string>
+    <string name="enable_step_active">Vaani is set up and ready. Open any app — WhatsApp, Gmail, Notes — and start speaking or typing.</string>
+    <string name="enable_open_settings">Open keyboard settings</string>
+    <string name="enable_pick_keyboard">Choose Vaani as my keyboard</string>
+
+    <string name="nav_settings">Settings</string>
+    <string name="nav_vocabulary">Vocabulary</string>
+    <string name="nav_snippets">Snippets</string>
+    <string name="nav_history">History</string>
+    <string name="nav_models">Models</string>
+    <string name="nav_privacy">Privacy</string>
+    <string name="nav_backup">Backup</string>
+</resources>
