@@ -42,8 +42,13 @@ jobs:
       - name: Lint
         run: ./gradlew lintDebug --console=plain
 
+      # continue-on-error: artifact uploads can fail on the account's own
+      # Actions storage quota, which is unrelated to whether the tests and
+      # lint themselves passed — that result is what should decide whether
+      # this job (and the jobs that depend on it) succeeds.
       - name: Upload lint report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
@@ -94,6 +99,7 @@ jobs:
 
       - name: Upload instrumented test report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-test-report
@@ -124,6 +130,10 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --console=plain
 
+      # Not continue-on-error, unlike the report uploads above: this APK is
+      # the actual deliverable, so if this fails (including on the
+      # account's Actions storage quota being hit) that should stay visible
+      # rather than being swallowed.
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
