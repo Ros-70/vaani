@@ -3,6 +3,13 @@ name: Android CI
 # Pinned versions (kept in sync with build.gradle.kts / app/build.gradle.kts):
 #   JDK 17 (temurin), Android Gradle Plugin 8.5.2, Kotlin 2.0.20,
 #   compileSdk 34, minSdk 26, NDK 26.3.11579264, CMake 3.22.1
+#
+# ubuntu-latest's hosted runner image ships with the Android SDK
+# preinstalled (ANDROID_HOME already set), so there is no separate
+# "set up Android SDK" action here — android-actions/setup-android@v3 was
+# tried first and fails outright (it tries to install the long-removed
+# legacy "tools" package). `sdkmanager` below just makes sure the specific
+# pieces this project needs are present.
 
 on:
   push:
@@ -20,8 +27,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Ensure Android platform 34 and build-tools are installed
+        run: yes | sdkmanager "platforms;android-34" "build-tools;34.0.0" >/dev/null
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -52,8 +59,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Ensure Android platform 34 and build-tools are installed
+        run: yes | sdkmanager "platforms;android-34" "build-tools;34.0.0" >/dev/null
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -99,11 +106,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        run: sdkmanager --install "ndk;26.3.11579264"
+      - name: Ensure Android platform, build-tools, and NDK are installed
+        run: yes | sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264" "cmake;3.22.1" >/dev/null
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
