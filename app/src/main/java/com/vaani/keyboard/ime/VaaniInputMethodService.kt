@@ -5,6 +5,8 @@ import android.inputmethodservice.InputMethodService
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.runtime.Recomposer
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
@@ -22,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * The system keyboard service. Per the build brief, this is the one piece
@@ -36,6 +39,18 @@ class VaaniInputMethodService : InputMethodService() {
     private lateinit var keyboardEngine: KeyboardEngine
     private lateinit var ops: InputConnectionOps
 
+    // Compose's default window-level recomposer looks up a
+    // ViewTreeLifecycleOwner starting from this window's absolute root view
+    // (View.getRootView()) — but InputMethodService wraps whatever
+    // onCreateInputView() returns inside its own internal decor hierarchy
+    // (a LinearLayout with id android:id/parentPanel, above our ComposeView),
+    // and we have no supported way to reach that real root to tag it
+    // ourselves. Hosting our own Recomposer sidesteps that lookup entirely —
+    // confirmed necessary (not just defensive) by a real crash on a real
+    // device via the instrumented test: "ViewTreeLifecycleOwner not found".
+    private lateinit var recomposerScope: CoroutineScope
+    private lateinit var recomposer: Recomposer
+
     override fun onCreate() {
         super.onCreate()
         imeLifecycleOwner = ImeLifecycleOwner().also {
@@ -43,6 +58,9 @@ class VaaniInputMethodService : InputMethodService() {
             it.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         }
         serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        recomposerScope = CoroutineScope(SupervisorJob() + AndroidUiDispatcher.CurrentThread)
+        recomposer = Recomposer(recomposerScope.coroutineContext)
+        recomposerScope.launch { recomposer.runRecomposeAndApplyChanges() }
         ops = InputConnectionOps { currentInputConnection }
 
         val app = application as VaaniApplication
@@ -59,6 +77,7 @@ class VaaniInputMethodService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         val composeView = ComposeView(this).apply {
+            setParentCompositionContext(recomposer)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setViewTreeLifecycleOwner(imeLifecycleOwner)
             setViewTreeViewModelStoreOwner(imeLifecycleOwner)
@@ -90,6 +109,8 @@ class VaaniInputMethodService : InputMethodService() {
     override fun onDestroy() {
         keyboardEngine.stop()
         serviceScope.cancel()
+        recomposer.cancel()
+        recomposerScope.cancel()
         imeLifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         super.onDestroy()
     }
