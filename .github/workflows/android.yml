@@ -101,11 +101,27 @@ jobs:
             # device yet, and connectedDebugAndroidTest alone doesn't
             # install app + test APK until the test run itself starts.
             ./gradlew installDebug --console=plain
+
+            IME_ID="com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService"
+            # installDebug reporting success races InputMethodManagerService
+            # actually finishing its post-install rescan — `ime enable`
+            # fails with "Unknown input method" if it runs first. Poll
+            # until the IME shows up in the system's own list instead of a
+            # blind sleep.
+            for i in $(seq 1 15); do
+              if adb shell ime list -a | grep -q "$IME_ID"; then
+                echo "IME registered after $i attempt(s)."
+                break
+              fi
+              echo "Waiting for $IME_ID to be registered (attempt $i)..."
+              sleep 2
+            done
+
             # Make Vaani the active system keyboard before the test suite
             # runs, exactly the way real third-party keyboard apps validate
             # themselves in CI (see VaaniImeInstrumentedTest's doc comment).
-            adb shell ime enable com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService
-            adb shell ime set com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService
+            adb shell ime enable "$IME_ID"
+            adb shell ime set "$IME_ID"
             ./gradlew connectedDebugAndroidTest --console=plain
 
       - name: Upload instrumented test report
