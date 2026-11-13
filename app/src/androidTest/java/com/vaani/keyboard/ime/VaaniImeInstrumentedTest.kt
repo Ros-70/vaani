@@ -11,6 +11,7 @@ import androidx.test.uiautomator.Until
 import com.vaani.keyboard.TestEditTextActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +30,11 @@ import org.junit.runner.RunWith
  * explicitly calls `showSoftInput` and waits for a real Vaani key to
  * become visible before driving it with UiAutomator and asserting on the
  * committed text in the real field — not a mock.
+ *
+ * Vaani's keyboard surface is one long-lived service instance shared across
+ * test methods within a run, so which panel (voice or QWERTY) is showing
+ * when a test starts depends on where the previous test left it — never
+ * assume the voice panel's "ABC ⌨" switch button is there to tap.
  */
 @RunWith(AndroidJUnit4::class)
 class VaaniImeInstrumentedTest {
@@ -40,17 +46,28 @@ class VaaniImeInstrumentedTest {
         device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     }
 
-    /** Focuses the field, forces the soft keyboard up, and waits for Vaani's voice panel to render. */
-    private fun showKeyboard(scenario: ActivityScenario<TestEditTextActivity>) {
+    /** Focuses the field, forces the soft keyboard up, and ensures the QWERTY panel (not voice) is showing. */
+    private fun showQwertyKeyboard(scenario: ActivityScenario<TestEditTextActivity>) {
         scenario.onActivity { activity ->
             activity.editText.requestFocus()
             val imm = activity.getSystemService(InputMethodManager::class.java)
             imm.showSoftInput(activity.editText, InputMethodManager.SHOW_FORCED)
         }
-        assertNotNull(
+        // Either panel proves the keyboard itself is on screen. BySelector has
+        // no "or" composition in UiAutomator, so poll for both by hand.
+        val deadline = System.currentTimeMillis() + 8000
+        while (System.currentTimeMillis() < deadline &&
+            !device.hasObject(By.text("ABC ⌨")) && !device.hasObject(By.text("q"))
+        ) {
+            Thread.sleep(200)
+        }
+        assertTrue(
             "Vaani's keyboard never appeared on screen",
-            device.wait(Until.findObject(By.text("ABC ⌨")), 8000),
+            device.hasObject(By.text("ABC ⌨")) || device.hasObject(By.text("q")),
         )
+        // Only the voice panel needs switching; a prior test may have left QWERTY showing already.
+        device.findObject(By.text("ABC ⌨"))?.click()
+        assertNotNull("QWERTY panel never appeared", device.wait(Until.findObject(By.text("q")), 3000))
     }
 
     private fun tap(label: String): UiObject2 {
@@ -63,9 +80,8 @@ class VaaniImeInstrumentedTest {
     @Test
     fun typing_q_w_e_on_the_letters_layer_commits_qwe_to_the_real_field() {
         ActivityScenario.launch(TestEditTextActivity::class.java).use { scenario ->
-            showKeyboard(scenario)
+            showQwertyKeyboard(scenario)
 
-            tap("ABC ⌨") // switch off the voice panel onto QWERTY
             tap("q")
             tap("w")
             tap("e")
@@ -79,9 +95,8 @@ class VaaniImeInstrumentedTest {
     @Test
     fun backspace_removes_the_last_committed_character() {
         ActivityScenario.launch(TestEditTextActivity::class.java).use { scenario ->
-            showKeyboard(scenario)
+            showQwertyKeyboard(scenario)
 
-            tap("ABC ⌨")
             tap("a")
             tap("b")
             tap("⌫")
