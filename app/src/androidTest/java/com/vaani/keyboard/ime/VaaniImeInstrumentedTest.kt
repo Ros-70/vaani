@@ -48,23 +48,30 @@ class VaaniImeInstrumentedTest {
 
     /** Focuses the field, forces the soft keyboard up, and ensures the QWERTY panel (not voice) is showing. */
     private fun showQwertyKeyboard(scenario: ActivityScenario<TestEditTextActivity>) {
-        scenario.onActivity { activity ->
-            activity.editText.requestFocus()
-            val imm = activity.getSystemService(InputMethodManager::class.java)
-            imm.showSoftInput(activity.editText, InputMethodManager.SHOW_FORCED)
+        fun requestKeyboard() {
+            scenario.onActivity { activity ->
+                activity.editText.requestFocus()
+                val imm = activity.getSystemService(InputMethodManager::class.java)
+                imm.showSoftInput(activity.editText, InputMethodManager.SHOW_FORCED)
+            }
         }
+
+        fun keyboardVisible() = device.hasObject(By.text("ABC ⌨")) || device.hasObject(By.text("q"))
+
         // Either panel proves the keyboard itself is on screen. BySelector has
-        // no "or" composition in UiAutomator, so poll for both by hand.
-        val deadline = System.currentTimeMillis() + 8000
-        while (System.currentTimeMillis() < deadline &&
-            !device.hasObject(By.text("ABC ⌨")) && !device.hasObject(By.text("q"))
-        ) {
-            Thread.sleep(200)
+        // no "or" composition in UiAutomator, so poll for both by hand. A
+        // freshly launched Activity's window isn't always focused yet the
+        // instant onActivity{} runs, so showSoftInput can silently no-op —
+        // retry it rather than failing after a single attempt.
+        requestKeyboard()
+        var attempts = 0
+        val deadline = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < deadline && !keyboardVisible()) {
+            Thread.sleep(300)
+            attempts++
+            if (attempts % 10 == 0) requestKeyboard() // retry roughly every 3s
         }
-        assertTrue(
-            "Vaani's keyboard never appeared on screen",
-            device.hasObject(By.text("ABC ⌨")) || device.hasObject(By.text("q")),
-        )
+        assertTrue("Vaani's keyboard never appeared on screen", keyboardVisible())
         // Only the voice panel needs switching; a prior test may have left QWERTY showing already.
         device.findObject(By.text("ABC ⌨"))?.click()
         assertNotNull("QWERTY panel never appeared", device.wait(Until.findObject(By.text("q")), 3000))
