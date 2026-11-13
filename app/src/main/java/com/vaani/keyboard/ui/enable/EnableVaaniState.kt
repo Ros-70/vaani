@@ -1,5 +1,6 @@
 package com.vaani.keyboard.ui.enable
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -34,8 +35,18 @@ object EnableVaaniState {
         return if (selectedId == ownId) EnableStep.ACTIVE else EnableStep.ENABLED_NOT_SELECTED
     }
 
+    /**
+     * Android identifies IMEs by `ComponentName.flattenToShortString()`,
+     * which abbreviates a class name that starts with its own package name
+     * (e.g. "com.vaani.keyboard.ime.VaaniInputMethodService" under package
+     * "com.vaani.keyboard" becomes "com.vaani.keyboard/.ime.VaaniInputMethodService",
+     * not ".../com.vaani.keyboard.ime.VaaniInputMethodService"). That
+     * abbreviated form is the real id `getEnabledInputMethodList()` and
+     * `Settings.Secure.DEFAULT_INPUT_METHOD` both use — hand-concatenating
+     * the fully-qualified class name here would never match either one.
+     */
     fun inputMethodId(context: Context): String =
-        "${context.packageName}/${VaaniInputMethodService::class.java.name}"
+        ComponentName(context.packageName, VaaniInputMethodService::class.java.name).flattenToShortString()
 
     /** Built separately from the call that fires it so tests can assert on action/data alone. */
     fun inputMethodSettingsIntent(): Intent =

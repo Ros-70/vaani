@@ -109,18 +109,18 @@ jobs:
             # reporting success races InputMethodManagerService finishing
             # its post-install rescan, so `ime enable` right after it can
             # still fail with "Unknown input method" — poll instead.
-            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do adb shell ime list -a | grep -q "com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService" && echo "IME registered after $i attempt(s)." && break; echo "Waiting for the IME to be registered (attempt $i)..."; sleep 2; done
-            # Diagnostics for when the IME still doesn't show up above —
-            # confirms whether the package/service is there at all rather
-            # than guessing blind a third time.
-            echo "---- pm list packages (vaani) ----" && (adb shell pm list packages | grep -i vaani || true)
-            echo "---- pm dump service lookup ----" && (adb shell dumpsys package com.vaani.keyboard | grep -A 3 -i "android.view.InputMethod" || true)
-            echo "---- full ime list -a ----" && (adb shell ime list -a || true)
-            # Make Vaani the active system keyboard before the test suite
-            # runs, exactly the way real third-party keyboard apps validate
-            # themselves in CI (see VaaniImeInstrumentedTest's doc comment).
-            adb shell ime enable com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService
-            adb shell ime set com.vaani.keyboard/com.vaani.keyboard.ime.VaaniInputMethodService
+            #
+            # The id itself is "com.vaani.keyboard/.ime.VaaniInputMethodService",
+            # NOT ".../com.vaani.keyboard.ime.VaaniInputMethodService": Android
+            # identifies IMEs by ComponentName.flattenToShortString(), which
+            # strips a class name's leading package-name prefix — confirmed
+            # against a real device's own `ime list -a` output. The
+            # fully-qualified form (what a previous run of this workflow used)
+            # never matches anything, which is why the IME looked like it was
+            # never registering at all.
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do adb shell ime list -a | grep -q "com.vaani.keyboard/.ime.VaaniInputMethodService" && echo "IME registered after $i attempt(s)." && break; echo "Waiting for the IME to be registered (attempt $i)..."; sleep 2; done
+            adb shell ime enable com.vaani.keyboard/.ime.VaaniInputMethodService
+            adb shell ime set com.vaani.keyboard/.ime.VaaniInputMethodService
             ./gradlew connectedDebugAndroidTest --console=plain
 
       - name: Upload instrumented test report

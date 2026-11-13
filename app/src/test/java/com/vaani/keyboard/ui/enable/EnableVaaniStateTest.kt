@@ -1,6 +1,7 @@
 package com.vaani.keyboard.ui.enable
 
 import android.provider.Settings
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,5 +49,19 @@ class EnableVaaniStateTest {
     fun `input method settings intent targets the manage-keyboards system screen`() {
         val intent = EnableVaaniState.inputMethodSettingsIntent()
         assertEquals(Settings.ACTION_INPUT_METHOD_SETTINGS, intent.action)
+    }
+
+    @Test
+    fun `inputMethodId matches Android's own abbreviated ComponentName form, not the fully-qualified class name`() {
+        // Confirmed against a real device: `adb shell ime list -a` reports
+        // this service's id as "com.vaani.keyboard/.ime.VaaniInputMethodService"
+        // — ComponentName.flattenToShortString() strips the class name's
+        // leading package-name prefix. getEnabledInputMethodList() and
+        // Settings.Secure.DEFAULT_INPUT_METHOD both use that same
+        // abbreviated form, so this must too or every enablement check
+        // silently never matches.
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val id = EnableVaaniState.inputMethodId(context)
+        assertEquals("com.vaani.keyboard/.ime.VaaniInputMethodService", id)
     }
 }
