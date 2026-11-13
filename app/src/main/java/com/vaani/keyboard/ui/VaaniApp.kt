@@ -1,7 +1,17 @@
 package com.vaani.keyboard.ui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -34,13 +44,36 @@ fun VaaniApp(
     initialScreen: String?,
 ) {
     val navController = rememberNavController()
+    var showMicRationale by remember { mutableStateOf(false) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     LaunchedEffect(initialScreen) {
         when (initialScreen) {
             "settings" -> navController.navigate(Routes.SETTINGS)
             "snippets" -> navController.navigate(Routes.SNIPPETS)
             "history" -> navController.navigate(Routes.HISTORY)
+            "request_mic_permission" -> showMicRationale = true
         }
+    }
+
+    if (showMicRationale) {
+        AlertDialog(
+            onDismissRequest = { showMicRationale = false },
+            title = { Text("Microphone access") },
+            // The one plain sentence the build brief asks for, shown before
+            // the system permission dialog itself — not a substitute for it.
+            text = { Text("Vaani needs the microphone to turn your speech into text — entirely on this phone, nothing is sent anywhere.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMicRationale = false
+                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMicRationale = false }) { Text("Not now") }
+            },
+        )
     }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {

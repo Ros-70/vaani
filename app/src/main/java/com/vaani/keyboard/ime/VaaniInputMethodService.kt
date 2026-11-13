@@ -49,7 +49,7 @@ class VaaniInputMethodService : InputMethodService() {
         keyboardEngine = KeyboardEngine(
             repository = app.repository,
             speechEngine = WhisperEngine(this),
-            audioCapture = AudioCapture(),
+            audioCapture = AudioCapture(this),
             ops = ops,
             scope = serviceScope,
             onOpenCompanion = { screen -> openCompanionApp(screen) },

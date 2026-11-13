@@ -1,8 +1,12 @@
 package com.vaani.keyboard.speech
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import androidx.core.content.ContextCompat
 import kotlin.math.sqrt
 
 /**
@@ -12,7 +16,7 @@ import kotlin.math.sqrt
  * Silence-stop is a simple RMS-energy-over-a-rolling-window check, no VAD
  * model needed, per the build brief.
  */
-class AudioCapture {
+class AudioCapture(private val context: Context) {
 
     companion object {
         const val SAMPLE_RATE = 16_000
@@ -26,13 +30,26 @@ class AudioCapture {
     @Volatile private var recording = false
     private val fullBuffer = mutableListOf<Short>()
 
+    fun hasRecordAudioPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Returns false (and starts nothing) if `RECORD_AUDIO` isn't granted —
+     * an IME service can't itself show the system permission dialog (only
+     * an Activity can), so the caller is responsible for routing to the
+     * companion app's request flow first. See
+     * `KeyboardEngine.startListening`/`VaaniInputMethodService`.
+     */
     fun start(
         streaming: Boolean,
         silenceStopEnabled: Boolean,
         onChunk: (ShortArray) -> Unit,
         onSilenceDetected: () -> Unit,
-    ) {
-        if (recording) return
+    ): Boolean {
+        if (recording) return true
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return false
+        }
         fullBuffer.clear()
 
         val minBufferSize = AudioRecord.getMinBufferSize(
@@ -79,6 +96,7 @@ class AudioCapture {
                 }
             }
         }.also { it.start() }
+        return true
     }
 
     /** Stops capture and returns the full held-duration recording, for the one-shot path. */

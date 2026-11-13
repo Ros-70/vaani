@@ -191,12 +191,20 @@ class KeyboardEngine(
 
     fun startListening() {
         if (isListening) return
+        // An IME service can't itself show the system permission dialog —
+        // only an Activity can — so route to the companion app's request
+        // flow instead of attempting (and failing) to record.
+        if (!audioCapture.hasRecordAudioPermission()) {
+            statusLine = "Microphone access needed — opening Vaani to ask for it"
+            onOpenCompanion("request_mic_permission")
+            return
+        }
         isListening = true
         transcript = ""
         partialTranscript = ""
         statusLine = "Listening… audio stays in memory"
         speechEngine.resetStream()
-        audioCapture.start(
+        val started = audioCapture.start(
             streaming = activeModel?.streaming == true,
             silenceStopEnabled = settingsSnapshot.silenceStop,
             onChunk = { pcm ->
@@ -206,6 +214,10 @@ class KeyboardEngine(
             },
             onSilenceDetected = { if (isListening) stopListening() },
         )
+        if (!started) {
+            isListening = false
+            statusLine = "Couldn't start the microphone."
+        }
     }
 
     fun stopListening() {
