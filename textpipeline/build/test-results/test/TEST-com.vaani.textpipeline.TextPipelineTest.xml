@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.vaani.textpipeline.TextPipelineTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-11-13T16:01:40" hostname="vm" time="0.1">
+  <properties/>
+  <testcase name="brief golden value 1 - GeM order()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.055"/>
+  <testcase name="semicolon spoken punctuation()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.002"/>
+  <testcase name="autoCaps disabled leaves case untouched()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.003"/>
+  <testcase name="question mark punctuation and vocabulary together()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.004"/>
+  <testcase name="repeated punctuation phrases each count as a hit()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.002"/>
+  <testcase name="vocabulary fires in stored order not text-occurrence order()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="hinglish ward round()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="spokenPunct disabled leaves phrases untouched()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="snippet command matches case-insensitively and strips trailing punctuation()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.004"/>
+  <testcase name="brief golden value 2 - vitals()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.003"/>
+  <testcase name="autoPunct does not double a trailing period()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.002"/>
+  <testcase name="snippet command returns null for unknown trigger or non-matching text()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="autoCaps capitalises after sentence punctuation and newline, not every word()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="tidySpacing collapses runs of spaces and fixes punctuation spacing()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <testcase name="spoken punctuation including new paragraph beats new line()" classname="com.vaani.textpipeline.TextPipelineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
