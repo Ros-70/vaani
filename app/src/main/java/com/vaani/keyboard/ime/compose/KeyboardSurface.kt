@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -78,6 +79,9 @@ private fun KeyboardTopBar(engine: KeyboardEngine) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        IconButton(onClick = { engine.switchKeyboard() }) {
+            Icon(Icons.Filled.Language, contentDescription = "Switch keyboard", tint = colors.sub)
+        }
         IconButton(onClick = { engine.openHistory() }) {
             Icon(Icons.Filled.History, contentDescription = "History", tint = colors.sub)
         }
@@ -144,8 +148,12 @@ private fun SuggestionStrip(engine: KeyboardEngine) {
                 SuggestionChip(candidate, isPick = false, colors = colors) { engine.onSuggestionPick(candidate) }
             }
             if (engine.suggestionCandidates.isEmpty()) {
+                // English has no word-prediction/autocomplete engine (by design —
+                // only Hindi/Hinglish gets the Latin→Devanagari lookup below); the
+                // note here is a privacy reassurance, not a promise of suggestions
+                // that then never appear.
                 Text(
-                    if (engine.language == KeyboardLanguage.ENGLISH) "suggestions are local" else "type in Latin → Devanagari",
+                    if (engine.language == KeyboardLanguage.ENGLISH) "🔒 nothing leaves this phone" else "type in Latin → Devanagari",
                     color = colors.sub,
                 )
             }

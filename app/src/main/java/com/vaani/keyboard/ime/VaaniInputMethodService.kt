@@ -1,10 +1,12 @@
 package com.vaani.keyboard.ime
 
+import android.content.Context
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.Recomposer
 import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
@@ -71,6 +73,9 @@ class VaaniInputMethodService : InputMethodService() {
             ops = ops,
             scope = serviceScope,
             onOpenCompanion = { screen -> openCompanionApp(screen) },
+            onSwitchKeyboard = { switchToOtherKeyboard() },
+            // Same directory ModelImportManager copies imported model files into.
+            modelsDir = java.io.File(filesDir, "models"),
         )
         keyboardEngine.start()
     }
@@ -123,6 +128,18 @@ class VaaniInputMethodService : InputMethodService() {
             variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
             variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
             isNumberPassword
+    }
+
+    /**
+     * Shows Android's own keyboard-switcher dialog. Most Android versions
+     * also provide their own globe/switch key in the nav area, but that's
+     * not visible/discoverable on every device — a dedicated button on
+     * Vaani's own keyboard means R is never stuck on it with no obvious way
+     * back to another keyboard.
+     */
+    private fun switchToOtherKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showInputMethodPicker()
     }
 
     private fun openCompanionApp(screen: String) {

@@ -20,10 +20,12 @@ import com.vaani.textpipeline.postProcess
 import com.vaani.textpipeline.trySnippetCommand
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.io.File
 
 data class EditorContext(
     val packageName: String,
@@ -45,6 +47,8 @@ class KeyboardEngine(
     private val ops: InputConnectionOps,
     private val scope: CoroutineScope,
     private val onOpenCompanion: (screen: String) -> Unit,
+    private val onSwitchKeyboard: () -> Unit,
+    private val modelsDir: File,
 ) {
     var panel by mutableStateOf(KeyboardPanel.VOICE)
     var layer by mutableStateOf(KeyLayer.LETTERS)
@@ -71,19 +75,42 @@ class KeyboardEngine(
     private var modelsSnapshot: List<ModelInfo> = emptyList()
     private var lastInsertion: Pair<String, String>? = null // Not text, but used for the Undo affordance signal.
     private var activeModel: ModelInfo? = null
+    private var loadedModelId: String? = null
 
     private var collectJob: Job? = null
 
     fun start() {
         collectJob = scope.launch {
-            repository.settings.onEach { settingsSnapshot = it }.launchIn(scope)
             repository.vocab.onEach { vocabSnapshot = it }.launchIn(scope)
             repository.snippets.onEach { snippetsSnapshot = it }.launchIn(scope)
-            repository.models.onEach { models ->
+            // Settings and Models are combined (not observed separately) so that
+            // switching the active model in Settings — without the Models list
+            // itself changing — still recomputes which model is active and loads
+            // it. Observing them independently (as an earlier version of this
+            // code did) silently never reloaded the model, which is why
+            // dictation did nothing even with a model imported and selected.
+            combine(repository.settings, repository.models) { settings, models ->
+                settingsSnapshot = settings
                 modelsSnapshot = models
-                activeModel = models.firstOrNull { it.id == settingsSnapshot.activeModelId }
+                models.firstOrNull { it.id == settings.activeModelId }
+            }.onEach { model ->
+                activeModel = model
+                ensureModelLoaded(model)
             }.launchIn(scope)
         }
+    }
+
+    private fun ensureModelLoaded(model: ModelInfo?) {
+        val fileName = model?.localFileName
+        if (model == null || !model.installed || fileName == null) {
+            loadedModelId = null
+            speechEngine.unload()
+            return
+        }
+        if (loadedModelId == model.id) return
+        val path = File(modelsDir, fileName).absolutePath
+        val ok = speechEngine.loadModel(path, model.streaming)
+        loadedModelId = if (ok) model.id else null
     }
 
     fun stop() {
@@ -199,6 +226,10 @@ class KeyboardEngine(
             onOpenCompanion("request_mic_permission")
             return
         }
+        if (!speechEngine.isLoaded) {
+            statusLine = "No speech model loaded — import one in Settings → Speech models"
+            return
+        }
         isListening = true
         transcript = ""
         partialTranscript = ""
@@ -232,7 +263,7 @@ class KeyboardEngine(
             speechEngine.transcribe(pcm)
         }
         if (raw.isBlank()) {
-            statusLine = ""
+            statusLine = "Didn't catch that — try again"
             return
         }
         handleRawTranscript(raw)
@@ -317,6 +348,9 @@ class KeyboardEngine(
     fun openHistory() = onOpenCompanion("history")
     fun openSnippets() = onOpenCompanion("snippets")
     fun openSettings() = onOpenCompanion("settings")
+
+    /** Shows Android's own keyboard-switcher dialog, so R isn't stuck on Vaani with no way back. */
+    fun switchKeyboard() = onSwitchKeyboard()
 
     fun insertSnippetDirectly(snippet: Snippet) {
         deliver(snippet.text)
