@@ -10,6 +10,27 @@ sealed class ModelImportResult {
 }
 
 /**
+ * True if the first 4 bytes of a file look like a GGUF or classic
+ * ggml/ggml-quantized ("ggjt") model header. Pulled out as a free function
+ * (no `Context`/Android dependency) so it's directly unit-testable — see
+ * `ModelImportManagerTest`, which pins down the exact on-disk byte order
+ * after an earlier version of this check used the wrong one and rejected
+ * every real whisper.cpp model file.
+ *
+ * GGUF files start with the literal ASCII bytes "GGUF", in that order.
+ * Classic ggml files are different: their magic is a 32-bit integer
+ * (0x67676d6c for plain ggml, 0x67676a74 for the "ggjt" quantized variant)
+ * written LITTLE-ENDIAN — so on disk the bytes are reversed from how the
+ * define's name reads, e.g. ggml's on-disk bytes spell "lmgg", not "ggml".
+ */
+fun looksLikeGgmlOrGguf(header: ByteArray): Boolean {
+    val asGguf = header.contentEquals(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte()))
+    val asGgml = header.contentEquals(byteArrayOf(0x6c, 0x6d, 0x67, 0x67)) // little-endian bytes of 0x67676d6c
+    val asGgjt = header.contentEquals(byteArrayOf(0x74, 0x6a, 0x67, 0x67)) // little-endian bytes of 0x67676a74
+    return asGguf || asGgml || asGgjt
+}
+
+/**
  * Copies a model file picked via Storage Access Framework
  * (`ACTION_OPEN_DOCUMENT`) into app-private storage, validating it looks
  * like a GGML/GGUF model whisper.cpp can load before accepting it — never a
@@ -45,14 +66,5 @@ class ModelImportManager(private val context: Context) {
         if (finalFile.exists()) finalFile.delete()
         tempFile.renameTo(finalFile)
         return ModelImportResult.Success(finalFile.name)
-    }
-
-    private fun looksLikeGgmlOrGguf(header: ByteArray): Boolean {
-        // GGML magic (0x67676d6c, "ggml" little-endian variants used across versions)
-        // and GGUF magic ("GGUF" ASCII) — whisper.cpp model files use one of these.
-        val asGguf = header.contentEquals(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte()))
-        val asGgmlAscii = header.contentEquals(byteArrayOf('g'.code.toByte(), 'g'.code.toByte(), 'm'.code.toByte(), 'l'.code.toByte()))
-        val asGgjt = header.contentEquals(byteArrayOf('g'.code.toByte(), 'g'.code.toByte(), 'j'.code.toByte(), 't'.code.toByte()))
-        return asGguf || asGgmlAscii || asGgjt
     }
 }
