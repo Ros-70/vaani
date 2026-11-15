@@ -22,7 +22,13 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
-                arguments += listOf("-DANDROID_STL=c++_shared")
+                // Without an explicit build type, CMake adds no optimization
+                // flags at all (not even for the "debug" Gradle variant) —
+                // whisper.cpp/ggml's matrix-multiplication-heavy code runs
+                // tens of times slower unoptimized, which is almost certainly
+                // why real-device dictation took minutes instead of seconds
+                // for even a 2-3 second clip, on both Whisper small and base.
+                arguments += listOf("-DANDROID_STL=c++_shared", "-DCMAKE_BUILD_TYPE=Release")
             }
         }
         ndk {
