@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <thread>
+#include <algorithm>
 
 #include "whisper.h"
 
@@ -29,6 +31,20 @@ struct VaaniWhisperContext {
     std::mutex mutex;
 };
 
+// Whisper's encoder always runs over a fixed ~30s window (short audio is
+// zero-padded internally to the model's fixed 1500-frame context) — that
+// fixed cost, not anything proportional to the actual clip length, is most
+// of why a single word and a full sentence took about the same ~19s on a
+// real (and fast) device even after the dead-optimization-flags fix. The
+// clearest remaining lever we control is thread count: hardcoding 4 leaves
+// real cores idle on a modern phone. hardware_concurrency() reports what's
+// actually available; capped so this doesn't regress older/weaker devices.
+int pickThreadCount() {
+    unsigned hc = std::thread::hardware_concurrency();
+    if (hc == 0) return 4; // hardware_concurrency() is allowed to return 0 if it can't tell.
+    return static_cast<int>(std::min<unsigned>(hc, 8));
+}
+
 std::vector<float> pcm16ToFloat(const int16_t *pcm, int count) {
     std::vector<float> out(count);
     for (int i = 0; i < count; ++i) {
@@ -46,15 +62,14 @@ std::string runFull(VaaniWhisperContext *vctx, const std::vector<float> &samples
         LOGE("runFull: samples buffer is empty");
         return "";
     }
-    LOGI("runFull: starting whisper_full on %zu samples (~%.2fs)", samples.size(), samples.size() / 16000.0);
-
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    LOGI("runFull: starting whisper_full on %zu samples (~%.2fs) with %d threads", samples.size(), samples.size() / 16000.0, pickThreadCount());
     params.print_progress = false;
     params.print_special = false;
     params.print_realtime = false;
     params.print_timestamps = false;
     params.single_segment = false;
-    params.n_threads = 4;
+    params.n_threads = pickThreadCount();
     // Hindi/Hinglish support per the build brief's model list — whisper.cpp's
     // "auto" language detection generally handles this; left as "auto"
     // rather than hardcoding "en" so Hindi dictation works without a
