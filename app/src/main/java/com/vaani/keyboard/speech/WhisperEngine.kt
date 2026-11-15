@@ -2,6 +2,7 @@ package com.vaani.keyboard.speech
 
 import android.content.Context
 import android.util.Log
+import com.vaani.keyboard.util.DebugLog
 
 /**
  * JNI bridge to whisper.cpp (see app/src/main/cpp). This is the engine the
@@ -27,13 +28,15 @@ class WhisperEngine(context: Context) : SpeechEngine {
 
     override fun loadModel(modelFilePath: String, streaming: Boolean): Boolean {
         unload()
+        logI("loadModel(): loading $modelFilePath (streaming=$streaming)")
         return try {
             nativeHandle = nativeLoad(modelFilePath)
             isLoaded = nativeHandle != 0L
             isStreaming = streaming && isLoaded
+            logI("loadModel(): nativeHandle=$nativeHandle isLoaded=$isLoaded")
             isLoaded
         } catch (t: Throwable) {
-            Log.e(TAG, "Failed to load model $modelFilePath", t)
+            logE("Failed to load model $modelFilePath", t)
             isLoaded = false
             false
         }
@@ -49,37 +52,54 @@ class WhisperEngine(context: Context) : SpeechEngine {
     }
 
     override fun transcribe(pcm16Mono16k: ShortArray): String {
-        if (!isLoaded) return ""
+        if (!isLoaded) {
+            logI("transcribe() called but isLoaded=false — no model is actually loaded")
+            return ""
+        }
         if (pcm16Mono16k.isEmpty()) {
-            Log.w(TAG, "transcribe() called with an empty buffer — nothing was recorded")
+            logI("transcribe() called with an empty buffer — nothing was recorded")
             return ""
         }
         val seconds = pcm16Mono16k.size / 16_000.0
-        Log.i(TAG, "transcribe(): running whisper_full on ${pcm16Mono16k.size} samples (~${"%.2f".format(seconds)}s)")
+        logI("transcribe(): calling nativeTranscribeFull on ${pcm16Mono16k.size} samples (~${"%.2f".format(seconds)}s), nativeHandle=$nativeHandle")
         val startMs = System.currentTimeMillis()
         val result = runCatching { nativeTranscribeFull(nativeHandle, pcm16Mono16k) }
-            .onFailure { Log.e(TAG, "nativeTranscribeFull threw", it) }
+            .onFailure { logE("nativeTranscribeFull threw", it) }
             .getOrDefault("")
-        Log.i(TAG, "transcribe(): finished in ${System.currentTimeMillis() - startMs}ms, result=\"$result\"")
+        logI("transcribe(): nativeTranscribeFull returned after ${System.currentTimeMillis() - startMs}ms, result=\"$result\"")
         return result
     }
 
     override fun transcribePartial(pcm16Mono16k: ShortArray): String {
         if (!isLoaded) return ""
         return runCatching { nativeTranscribeChunk(nativeHandle, pcm16Mono16k) }
-            .onFailure { Log.e(TAG, "nativeTranscribeChunk threw", it) }
+            .onFailure { logE("nativeTranscribeChunk threw", it) }
             .getOrDefault("")
     }
 
     override fun finalizeStream(): String {
         if (!isLoaded) return ""
-        return runCatching { nativeFinalizeStream(nativeHandle) }
-            .onFailure { Log.e(TAG, "nativeFinalizeStream threw", it) }
+        logI("finalizeStream(): calling nativeFinalizeStream, nativeHandle=$nativeHandle")
+        val startMs = System.currentTimeMillis()
+        val result = runCatching { nativeFinalizeStream(nativeHandle) }
+            .onFailure { logE("nativeFinalizeStream threw", it) }
             .getOrDefault("")
+        logI("finalizeStream(): returned after ${System.currentTimeMillis() - startMs}ms, result=\"$result\"")
+        return result
     }
 
     override fun resetStream() {
         if (isLoaded) runCatching { nativeResetStream(nativeHandle) }
+    }
+
+    private fun logI(message: String) {
+        Log.i(TAG, message)
+        DebugLog.log(TAG, message)
+    }
+
+    private fun logE(message: String, t: Throwable) {
+        Log.e(TAG, message, t)
+        DebugLog.log(TAG, "$message — ${t::class.simpleName}: ${t.message}")
     }
 
     private external fun nativeLoad(modelPath: String): Long

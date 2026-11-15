@@ -222,6 +222,7 @@ class KeyboardEngine(
 
     fun startListening() {
         if (isListening) return
+        com.vaani.keyboard.util.DebugLog.log("KeyboardEngine", "startListening(): activeModel=${activeModel?.id} loaded=${speechEngine.isLoaded}")
         // An IME service can't itself show the system permission dialog —
         // only an Activity can — so route to the companion app's request
         // flow instead of attempting (and failing) to record.
@@ -259,6 +260,7 @@ class KeyboardEngine(
         if (!isListening) return
         isListening = false
         statusLine = "Transcribing…"
+        com.vaani.keyboard.util.DebugLog.log("KeyboardEngine", "stopListening(): launching background transcription, activeModel=${activeModel?.id}")
         // The actual transcription is a real, possibly multi-second,
         // blocking whisper.cpp call — running it directly on the caller's
         // thread freezes the IME's main thread for that whole duration
@@ -272,6 +274,7 @@ class KeyboardEngine(
         scope.launch {
             val pcm = audioCapture.stopAndGetBuffer()
             val modelName = activeModel?.name ?: "this model"
+            com.vaani.keyboard.util.DebugLog.log("KeyboardEngine", "stopAndGetBuffer(): got ${pcm.size} samples, streaming=${activeModel?.streaming}")
             // whisper.cpp's native call can't be cancelled once started, so this
             // doesn't give up on it — it just tells R it's still working instead
             // of leaving "Transcribing…" up with no feedback forever, which on a

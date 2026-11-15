@@ -114,7 +114,36 @@ fun SettingsScreen(repository: VaaniRepository, navController: NavHostController
                     Button(onClick = { navController.navigate(Routes.BACKUP) }) { Text("💾 Backup & restore") }
                 }
             }
+
+            item { Spacer(modifier = Modifier.height(10.dp)) }
+
+            item {
+                Card {
+                    Text("Troubleshooting")
+                    DiagnosticLogRow()
+                }
+            }
         }
+    }
+}
+
+/**
+ * Copies the app's in-memory diagnostic log (see [com.vaani.keyboard.util.DebugLog])
+ * to the clipboard — R has no adb/PC, so this is the only practical way to
+ * get real log lines out of the app when something like dictation silently
+ * produces nothing.
+ */
+@Composable
+private fun DiagnosticLogRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    Button(onClick = {
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Vaani diagnostic log", com.vaani.keyboard.util.DebugLog.dump()))
+        copied = true
+    }) { Text("📋 Copy diagnostic log") }
+    if (copied) {
+        Text("Copied — paste it wherever you're reporting the issue.")
     }
 }
 
