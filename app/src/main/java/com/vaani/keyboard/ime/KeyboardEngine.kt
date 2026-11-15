@@ -19,12 +19,14 @@ import com.vaani.textpipeline.Snippet as PipelineSnippet
 import com.vaani.textpipeline.postProcess
 import com.vaani.textpipeline.trySnippetCommand
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 data class EditorContext(
@@ -254,19 +256,32 @@ class KeyboardEngine(
     fun stopListening() {
         if (!isListening) return
         isListening = false
-        val pcm = audioCapture.stopAndGetBuffer()
         statusLine = "Transcribing…"
-
-        val raw = if (activeModel?.streaming == true) {
-            speechEngine.finalizeStream()
-        } else {
-            speechEngine.transcribe(pcm)
+        // The actual transcription is a real, possibly multi-second,
+        // blocking whisper.cpp call — running it directly on the caller's
+        // thread freezes the IME's main thread for that whole duration
+        // (and this is called both from the mic button's gesture handler,
+        // on the main thread, and from AudioCapture's own recording thread
+        // on silence-stop). Confirmed as the cause of "Transcribing… forever,
+        // then nothing" on a real device: the UI/IME thread was blocked the
+        // entire time, so nothing could render or commit until — and unless
+        // — it ever returned. Do the blocking work off-thread and only
+        // touch Compose state / the InputConnection back on the main thread.
+        scope.launch {
+            val pcm = audioCapture.stopAndGetBuffer()
+            val raw = if (activeModel?.streaming == true) {
+                speechEngine.finalizeStream()
+            } else {
+                speechEngine.transcribe(pcm)
+            }
+            withContext(Dispatchers.Main) {
+                if (raw.isBlank()) {
+                    statusLine = "Didn't catch that — try again"
+                } else {
+                    handleRawTranscript(raw)
+                }
+            }
         }
-        if (raw.isBlank()) {
-            statusLine = "Didn't catch that — try again"
-            return
-        }
-        handleRawTranscript(raw)
     }
 
     private fun handleRawTranscript(raw: String) {
