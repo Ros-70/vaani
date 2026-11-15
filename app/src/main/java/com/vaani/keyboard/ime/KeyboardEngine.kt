@@ -21,6 +21,8 @@ import com.vaani.textpipeline.trySnippetCommand
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -269,11 +271,25 @@ class KeyboardEngine(
         // touch Compose state / the InputConnection back on the main thread.
         scope.launch {
             val pcm = audioCapture.stopAndGetBuffer()
-            val raw = if (activeModel?.streaming == true) {
-                speechEngine.finalizeStream()
-            } else {
-                speechEngine.transcribe(pcm)
+            val modelName = activeModel?.name ?: "this model"
+            // whisper.cpp's native call can't be cancelled once started, so this
+            // doesn't give up on it — it just tells R it's still working instead
+            // of leaving "Transcribing…" up with no feedback forever, which on a
+            // slower phone with a bigger model (e.g. Whisper small) can genuinely
+            // take a long time for even a short recording.
+            val transcribeJob = async {
+                if (activeModel?.streaming == true) {
+                    speechEngine.finalizeStream()
+                } else {
+                    speechEngine.transcribe(pcm)
+                }
             }
+            val slowNoticeJob = launch {
+                delay(12_000)
+                withContext(Dispatchers.Main) { statusLine = "Still working — $modelName can take a while on some phones…" }
+            }
+            val raw = transcribeJob.await()
+            slowNoticeJob.cancel()
             withContext(Dispatchers.Main) {
                 if (raw.isBlank()) {
                     statusLine = "Didn't catch that — try again"

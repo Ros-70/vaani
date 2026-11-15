@@ -15,6 +15,7 @@
 
 #define LOG_TAG "vaani_whisper_jni"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 namespace {
 
@@ -37,7 +38,15 @@ std::vector<float> pcm16ToFloat(const int16_t *pcm, int count) {
 }
 
 std::string runFull(VaaniWhisperContext *vctx, const std::vector<float> &samples) {
-    if (vctx->ctx == nullptr || samples.empty()) return "";
+    if (vctx->ctx == nullptr) {
+        LOGE("runFull: no loaded whisper_context");
+        return "";
+    }
+    if (samples.empty()) {
+        LOGE("runFull: samples buffer is empty");
+        return "";
+    }
+    LOGI("runFull: starting whisper_full on %zu samples (~%.2fs)", samples.size(), samples.size() / 16000.0);
 
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.print_progress = false;
@@ -67,6 +76,7 @@ std::string runFull(VaaniWhisperContext *vctx, const std::vector<float> &samples
             result += text;
         }
     }
+    LOGI("runFull: whisper_full returned %d segment(s), result=\"%s\"", segments, result.c_str());
     return result;
 }
 
